@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    tools:context=".MainActivity">
+
+    <Button
+        android:id="@+id/btnSelectDownloads"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="1. Selecionar Pasta de Downloads" />
+
+    <GridLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:columnCount="2"
+        android:rowCount="2">
+
+        <Button
+            android:id="@+id/btnOrganizeCategory"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_marginEnd="4dp"
+            android:text="Organizar por Categoria"
+            android:enabled="false" />
+
+        <Button
+            android:id="@+id/btnOrganizeByDate"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_marginStart="4dp"
+            android:text="Organizar por Data"
+            android:enabled="false" />
+
+        <Button
+            android:id="@+id/btnCleanFiles"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_marginEnd="4dp"
+            android:text="Limpar Arquivos"
+            android:enabled="false" />
+
+        <Button
+            android:id="@+id/btnRemoveEmptyFolders"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_columnWeight="1"
+            android:layout_marginStart="4dp"
+            android:text="Remover Pastas Vazias"
+            android:enabled="false" />
+
+    </GridLayout>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:indeterminate="false"
+        android:max="100"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"
+        android:background="#F1F1F1">
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="8dp"
+            android:text="Bem-vindo! Selecione sua pasta de Downloads para começar."
+            android:textAppearance="@style/TextAppearance.AppCompat.Small"
+            android:textColor="#333333" />
+    </ScrollView>
+
+</LinearLayout>
