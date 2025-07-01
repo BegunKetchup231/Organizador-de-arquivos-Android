@@ -247,7 +247,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun selectDownloadsFolder() {
-        updateStatus("Por favor, selecione sua pasta de Downloads.")
+        updateStatus("Por favor, selecione sua pasta")
         openDocumentTreeLauncher.launch(null) // Abre o seletor de pastas do sistema
     }
 
