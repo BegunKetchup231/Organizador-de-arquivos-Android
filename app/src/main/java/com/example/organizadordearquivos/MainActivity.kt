@@ -1,5 +1,6 @@
 package com.example.organizadordearquivos // VERIFIQUE SE ESTE NOME DE PACOTE CORRESPONDE AO SEU
 
+import java.io.IOException
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -217,7 +218,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
+    private fun DocumentFile.getExtension(): String {
+        return this.name?.substringAfterLast('.', "")?.lowercase(Locale.ROOT) ?: ""
+    }
     private fun updateButtonStates() {
         val isFolderSelected = downloadsTreeUri != null
         val processing = isProcessing.value
@@ -265,9 +268,6 @@ class MainActivity : AppCompatActivity() {
 
     // --- Funções Auxiliares de Arquivo (Tradução da lógica Python) ---
 
-    private fun DocumentFile.getExtension(): String {
-        return name?.substringAfterLast('.', "")?.let { ".$it" }?.lowercase(Locale.ROOT) ?: ""
-    }
 
     private fun findOrCreateDirectory(parent: DocumentFile, name: String): DocumentFile? {
         return parent.findFile(name)?.takeIf { it.isDirectory } ?: parent.createDirectory(name)
@@ -281,30 +281,74 @@ class MainActivity : AppCompatActivity() {
         return String.format(Locale.getDefault(), "%.1f %s", size, units[i])
     }
 
-    private fun moveFile(file: DocumentFile, destinationDir: DocumentFile): DocumentFile? {
-        // Tenta mover usando o metodo mais eficiente do Android
-        return try {
-            val parentUri = file.parentFile?.uri ?: return null // Proteção contra parent nulo
+    private fun moveFile(
+        fileToMove: DocumentFile,
+        destinationDir: DocumentFile,
+        finalFileName: String
+    ): DocumentFile? {
+        try {
+            // Passo 1: Renomear o arquivo na origem SE o nome final for diferente.
+            // `renameTo` é geralmente uma operação de metadados rápida.
+            val fileWithFinalName = if (fileToMove.name != finalFileName) {
+                if (fileToMove.renameTo(finalFileName)) {
+                    // Sucesso! Agora precisamos da nova referência para o arquivo renomeado.
+                    // A referência original `fileToMove` pode se tornar inválida.
+                    val parent = fileToMove.parentFile
+                    if (parent == null) {
+                        throw IOException("O arquivo de origem não tem um diretório pai.")
+                    }
+                    parent.findFile(finalFileName)
+                        ?: throw IOException("Falha ao encontrar o arquivo após renomear para '$finalFileName'.")
+                } else {
+                    // Se a renomeação falhar, não podemos usar `moveDocument` de forma confiável.
+                    // Lançamos uma exceção para pular diretamente para o bloco de fallback (catch).
+                    throw IOException("Falha ao renomear o arquivo de origem.")
+                }
+            } else {
+                // O nome já está correto, não é preciso renomear.
+                fileToMove
+            }
+
+            // Passo 2: Mover o arquivo (que agora tem o nome correto) para o destino.
             val movedUri = DocumentsContract.moveDocument(
                 contentResolver,
-                file.uri,
-                parentUri,
+                fileWithFinalName.uri,
+                fileWithFinalName.parentFile!!.uri, // O pai do arquivo (possivelmente renomeado)
                 destinationDir.uri
             )
-            movedUri?.let { DocumentFile.fromSingleUri(this, it) }
+            return movedUri?.let { DocumentFile.fromSingleUri(this, it) }
+
         } catch (e: Exception) {
-            // Fallback: Se o 'move' falhar (ex: mover entre diferentes armazenamentos), copia e deleta.
-            // Esta parte é mais lenta, mas mais robusta.
-            try {
-                val newFile = destinationDir.createFile(file.type ?: "application/octet-stream", file.name!!)
-                contentResolver.openInputStream(file.uri)?.use { input ->
-                    contentResolver.openOutputStream(newFile!!.uri)?.use { output ->
-                        input.copyTo(output)
+            // --- FALLBACK ---
+            // Se qualquer operação no bloco `try` falhar, executamos o método de copiar e deletar.
+            updateStatus("Aviso: Usando método de cópia para '${fileToMove.name}' -> '$finalFileName'.")
+            return try {
+                // Cria o arquivo no destino JÁ COM O NOME FINAL CORRETO.
+                val newFile = destinationDir.createFile(fileToMove.type ?: "application/octet-stream", finalFileName)
+
+                // Copia o conteúdo do arquivo original para o novo.
+                if (newFile != null) {
+                    contentResolver.openInputStream(fileToMove.uri)?.use { input ->
+                        contentResolver.openOutputStream(newFile.uri)?.use { output ->
+                            input.copyTo(output)
+                        }
                     }
+                } else {
+                    throw IOException("Não foi possível criar o arquivo de destino '$finalFileName'.")
                 }
-                if (file.delete()) newFile else null
+
+                // Se a cópia for bem-sucedida, deleta o arquivo original.
+                if (fileToMove.delete()) {
+                    newFile // Retorna o novo arquivo criado
+                } else {
+                    // Isso é um problema: a cópia existe mas o original não foi apagado.
+                    // Para evitar duplicatas, deletamos a cópia que acabamos de fazer.
+                    newFile.delete()
+                    updateStatus("ERRO: O arquivo original '${fileToMove.name}' não pôde ser deletado após a cópia. A operação foi revertida.")
+                    null
+                }
             } catch (copyError: Exception) {
-                updateStatus("ERRO CRÍTICO ao mover '${file.name}': ${copyError.message}")
+                updateStatus("ERRO CRÍTICO ao copiar '${fileToMove.name}': ${copyError.message}")
                 null
             }
         }
@@ -321,9 +365,11 @@ class MainActivity : AppCompatActivity() {
 
             try {
                 withContext(Dispatchers.IO) {
-                    val downloadsRoot = DocumentFile.fromTreeUri(applicationContext, uri) ?: return@withContext
+                    val downloadsRoot = DocumentFile.fromTreeUri(applicationContext, uri)
+                        ?: throw IOException("Não foi possível acessar a pasta selecionada.")
 
                     val allItems = downloadsRoot.listFiles().toList()
+                    // Ignora as pastas que o próprio app cria para evitar movê-las
                     val foldersToIgnore = setOf("Arquivos", "Pastas_Organizadas", "Organizado_Por_Data")
 
                     val filesToMove = allItems.filter { it.isFile && !it.name.orEmpty().startsWith('.') }
@@ -334,61 +380,76 @@ class MainActivity : AppCompatActivity() {
                         return@withContext
                     }
 
+                    // Pastas de destino
                     val mainArchiveFolder = findOrCreateDirectory(downloadsRoot, "Arquivos")!!
                     val organizedFoldersBase = findOrCreateDirectory(downloadsRoot, "Pastas_Organizadas")!!
 
                     var movedFilesCount = 0
                     var movedFoldersCount = 0
                     val totalItems = filesToMove.size + foldersToMove.size
+                    var itemsProcessed = 0
 
-                    // Mover Pastas
-                    foldersToMove.forEachIndexed { index, folder ->
-                        val newFolder = moveFile(folder, organizedFoldersBase)
+                    // --- 1. Mover Pastas ---
+                    // Pega a lista de nomes de pastas já existentes no destino para checar conflitos
+                    val existingFolderNames = organizedFoldersBase.listFiles()
+                        .mapNotNull { it.name }
+                        .toMutableSet()
+
+                    foldersToMove.forEach { folder ->
+                        var finalFolderName = folder.name!!
+                        // Lida com conflito de nomes para pastas
+                        if (existingFolderNames.contains(finalFolderName)) {
+                            var suffix = 1
+                            do {
+                                finalFolderName = "${folder.name}_${suffix++}"
+                            } while (existingFolderNames.contains(finalFolderName))
+                        }
+
+                        // CORREÇÃO: Passa o terceiro parâmetro 'finalFolderName' para a função moveFile
+                        val newFolder = moveFile(folder, organizedFoldersBase, finalFolderName)
+
                         if (newFolder != null) {
-                            updateStatus("Pasta movida: '${folder.name}'")
+                            updateStatus("Pasta movida: '${newFolder.name}'")
                             movedFoldersCount++
+                            existingFolderNames.add(newFolder.name!!) // Atualiza a lista para evitar conflitos na mesma execução
                         } else {
                             updateStatus("Falha ao mover pasta: '${folder.name}'")
                         }
-                        updateProgress(((index + 1) * 100) / totalItems)
+                        itemsProcessed++
+                        updateProgress((itemsProcessed * 100) / totalItems)
                     }
 
-                    // Mover Arquivos
-                    filesToMove.forEachIndexed { index, file ->
+                    // --- 2. Mover Arquivos ---
+                    filesToMove.forEach { file ->
                         val extension = file.getExtension()
                         val categoryName = FILE_CATEGORIES.getOrDefault(extension, "Diversos")
 
                         val categoryFolder = findOrCreateDirectory(mainArchiveFolder, categoryName)!!
-                        val extensionFolderName = "${categoryName}${extension.replace(".", "").uppercase(Locale.ROOT)}"
-                        val finalDestFolder = findOrCreateDirectory(categoryFolder, extensionFolderName)!!
+                        // O nome da pasta final não precisa mais de lógica complexa. Usaremos o nome da categoria.
+                        val finalDestFolder = findOrCreateDirectory(categoryFolder, extension.uppercase(Locale.ROOT))!!
 
-                        // Lida com conflitos de nome
-                        var targetFile = file
+                        // CORREÇÃO: Lógica de conflito simplificada antes de chamar moveFile
                         var finalFileName = file.name!!
                         if (finalDestFolder.findFile(finalFileName) != null) {
                             val baseName = finalFileName.substringBeforeLast('.')
                             val ext = finalFileName.substringAfterLast('.')
                             var suffix = 1
                             do {
-                                finalFileName = "${baseName}_${suffix++}.${ext}"
+                                finalFileName = "${baseName}_${suffix++}.$ext"
                             } while (finalDestFolder.findFile(finalFileName) != null)
-
-                            try {
-                                file.renameTo(finalFileName)
-                                targetFile = DocumentFile.fromSingleUri(applicationContext, file.uri)!!
-                            } catch (e: Exception) {
-                                updateStatus("Falha ao renomear arquivo em conflito: ${file.name}")
-                            }
                         }
 
-                        val newFile = moveFile(targetFile, finalDestFolder)
+                        // CORREÇÃO: Passa o terceiro parâmetro 'finalFileName' para a função moveFile
+                        val newFile = moveFile(file, finalDestFolder, finalFileName)
+
                         if (newFile != null) {
-                            updateStatus("Arquivo movido: '$finalFileName' -> $categoryName")
+                            updateStatus("Arquivo movido: '${newFile.name}' -> $categoryName")
                             movedFilesCount++
                         } else {
-                            updateStatus("Falha ao mover arquivo: '${targetFile.name}'")
+                            updateStatus("Falha ao mover arquivo: '${file.name}'")
                         }
-                        updateProgress(((foldersToMove.size + index + 1) * 100) / totalItems)
+                        itemsProcessed++
+                        updateProgress((itemsProcessed * 100) / totalItems)
                     }
 
                     updateStatus("\n--- Resumo da Organização ---")
@@ -513,6 +574,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun organizeByDate() {
+        // Pega a URI da pasta selecionada (ex: Downloads)
         val uri = downloadsTreeUri ?: return
 
         lifecycleScope.launch {
@@ -520,62 +582,100 @@ class MainActivity : AppCompatActivity() {
             updateStatus("\n--- Iniciando Organização por Data ---")
 
             try {
+                // Executa o trabalho pesado em uma thread de I/O para não bloquear a UI
                 withContext(Dispatchers.IO) {
-                    val downloadsRoot = DocumentFile.fromTreeUri(applicationContext, uri) ?: return@withContext
+                    val downloadsRoot = DocumentFile.fromTreeUri(applicationContext, uri)
+                        ?: throw IOException("Não foi possível acessar a pasta selecionada.")
 
-                    val foldersToIgnore = setOf("Arquivos", "Pastas_Organizadas", "Organizado_Por_Data")
+                    // Filtra apenas os arquivos, ignorando pastas e arquivos ocultos
                     val filesToOrganize = downloadsRoot.listFiles().filter {
                         it.isFile && !it.name.orEmpty().startsWith('.')
                     }
 
                     if (filesToOrganize.isEmpty()) {
-                        updateStatus("Nenhum arquivo solto para organizar por data.")
+                        updateStatus("Nenhum arquivo encontrado para organizar.")
                         return@withContext
                     }
 
+                    // Garante que a pasta base de destino exista
                     val dateOutputBase = findOrCreateDirectory(downloadsRoot, "Organizado_Por_Data")!!
                     var movedCount = 0
 
+                    // Formatos de data para criar os nomes das pastas
                     val yearFormat = SimpleDateFormat("yyyy", Locale.getDefault())
                     val monthFormat = SimpleDateFormat("MM - MMMM", Locale.getDefault())
 
+                    // OTIMIZAÇÃO 1: Cache para as pastas de destino (Mês/Ano)
+                    val monthFolderCache = mutableMapOf<String, DocumentFile>()
+
+                    // OTIMIZAÇÃO 2: Cache para nomes de arquivos já existentes nas pastas de destino
+                    val existingFilesInDestCache = mutableMapOf<String, MutableSet<String>>()
+
                     filesToOrganize.forEachIndexed { index, file ->
                         val modDate = Date(file.lastModified())
-                        val yearFolder = findOrCreateDirectory(dateOutputBase, yearFormat.format(modDate))!!
-                        val monthFolder = findOrCreateDirectory(yearFolder, monthFormat.format(modDate))!!
+                        val yearString = yearFormat.format(modDate)
+                        val monthString = monthFormat.format(modDate)
+                        val monthPathKey = "$yearString/$monthString" // Chave única para o cache
 
-                        // Lida com conflitos de nome (semelhante à outra função)
-                        var targetFile = file
+                        // Usa o cache para obter a pasta do mês.
+                        // O código dentro de 'getOrPut' só é executado se a pasta
+                        // ainda não estiver no cache (ou seja, na primeira vez que o mês aparece).
+                        val monthFolder = monthFolderCache.getOrPut(monthPathKey) {
+                            updateStatus("Verificando/Criando pasta: $monthPathKey")
+                            val yearFolder = findOrCreateDirectory(dateOutputBase, yearString)!!
+                            findOrCreateDirectory(yearFolder, monthString)!!
+                        }
+
+                        // Usa o cache para obter a lista de nomes de arquivos no destino.
+                        // O código aqui só lista os arquivos do disco uma única vez por pasta.
+                        val destinationExistingFiles = existingFilesInDestCache.getOrPut(monthPathKey) {
+                            monthFolder.listFiles().mapNotNull { it.name }.toMutableSet()
+                        }
+
+                        // Lógica de verificação de conflito, agora usando o cache em memória (muito rápido)
                         var finalFileName = file.name!!
-                        if (monthFolder.findFile(finalFileName) != null) {
-                            // Renomeia o arquivo original antes de mover
+                        if (destinationExistingFiles.contains(finalFileName)) {
                             val baseName = finalFileName.substringBeforeLast('.')
                             val ext = finalFileName.substringAfterLast('.')
                             var suffix = 1
                             do {
-                                finalFileName = "${baseName}_${suffix++}.${ext}"
-                            } while (downloadsRoot.findFile(finalFileName) != null) // Verifica na origem
-                            file.renameTo(finalFileName)
-                            targetFile = downloadsRoot.findFile(finalFileName)!!
+                                finalFileName = "${baseName}_${suffix++}.$ext"
+                            } while (destinationExistingFiles.contains(finalFileName))
                         }
 
-                        val newFile = moveFile(targetFile, monthFolder)
-                        if (newFile != null) {
-                            updateStatus("Movido por data: '$finalFileName'")
+                        // CHAMA A FUNÇÃO moveFile ATUALIZADA, passando o nome final
+                        val movedFile = moveFile(file, monthFolder, finalFileName)
+
+                        if (movedFile != null) {
+                            // Sucesso!
                             movedCount++
+                            // Adiciona o nome do arquivo recém-movido ao cache para que o próximo
+                            // arquivo no loop não tente usar o mesmo nome.
+                            destinationExistingFiles.add(movedFile.name!!)
                         } else {
-                            updateStatus("Falha ao mover por data: '${targetFile.name}'")
+                            // A função moveFile já deve ter logado o erro específico.
+                            updateStatus("Falha ao mover: '${file.name}'")
                         }
-                        updateProgress(((index + 1) * 100) / filesToOrganize.size)
+
+                        // OTIMIZAÇÃO 3: Atualiza o progresso a cada 50 arquivos ou no final
+                        if ((index + 1) % 50 == 0 || (index + 1) == filesToOrganize.size) {
+                            val progress = ((index + 1) * 100) / filesToOrganize.size
+                            updateProgress(progress)
+                            updateStatus("Processando ${index + 1} de ${filesToOrganize.size}...")
+                        }
                     }
 
                     updateStatus("\n--- Resumo da Organização por Data ---")
-                    updateStatus("$movedCount arquivos movidos para 'Organizado_Por_Data'.")
+                    updateStatus("$movedCount de ${filesToOrganize.size} arquivos movidos com sucesso para 'Organizado_Por_Data'.")
                 }
             } catch (e: Exception) {
-                updateStatus("ERRO: ${e.message}")
+                // Captura qualquer erro inesperado durante o processo
+                updateStatus("ERRO GERAL: ${e.message}")
+                e.printStackTrace() // Ajuda a depurar
             } finally {
+                // Garante que o indicador de processamento seja desativado
                 _isProcessing.value = false
+                updateProgress(0) // Reseta a barra de progresso
             }
         }
     }
