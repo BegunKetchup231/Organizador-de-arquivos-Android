@@ -2,8 +2,8 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="16dp"
     tools:context=".MainActivity">
@@ -31,7 +31,8 @@
             android:layout_marginBottom="4dp"
             android:enabled="false"
             android:text="Org. / por Categoria"
-            android:textStyle="italic" />
+            android:textStyle="italic"
+            tools:ignore="TouchTargetSizeCheck" />
 
         <Button
             android:id="@+id/btnOrganizeByDate"
@@ -43,7 +44,8 @@
             android:layout_marginBottom="4dp"
             android:enabled="false"
             android:text="Org. / por Data"
-            android:textStyle="italic" />
+            android:textStyle="italic"
+            tools:ignore="TouchTargetSizeCheck" />
 
         <Button
             android:id="@+id/btnCleanFiles"
@@ -55,7 +57,8 @@
             android:layout_marginEnd="4dp"
             android:enabled="false"
             android:text="Del. / Arquivos Temp"
-            android:textStyle="italic" />
+            android:textStyle="italic"
+            tools:ignore="TouchTargetSizeCheck" />
 
         <Button
             android:id="@+id/btnRemoveEmptyFolders"
@@ -68,19 +71,26 @@
             android:enabled="false"
             android:text="Del. / Pastas Vazias"
             android:textAlignment="center"
-            android:textStyle="italic" />
+            android:textStyle="italic"
+            tools:ignore="TouchTargetSizeCheck" />
 
 
     </GridLayout>
 
+    <TextView
+        android:id="@+id/progressStatusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Progresso - (0%)"
+        android:textAlignment="center"
+        android:textStyle="italic" />
+
     <ProgressBar
         android:id="@+id/progressBar"
         android:layout_width="match_parent"
-        android:layout_height="20dp"  android:layout_marginTop="16dp"
-        android:indeterminate="false"
-        android:max="100"
-        android:progressDrawable="@drawable/custom_progressbar" android:visibility="visible"
-        tools:visibility="visible" />
+        android:layout_height="20dp"  android:progressDrawable="@drawable/custom_progressbar"
+        tools:progress="50" />
+
 
     <ScrollView
         android:layout_width="match_parent"
