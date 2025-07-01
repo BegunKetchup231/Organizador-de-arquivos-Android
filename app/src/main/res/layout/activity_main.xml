@@ -12,11 +12,11 @@
         android:id="@+id/btnSelectDownloads"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="1. Selecionar Pasta de Downloads" />
+        android:text="> Selecione a pasta para iniciar" />
 
     <GridLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="92dp"
         android:layout_marginTop="8dp"
         android:columnCount="2"
         android:rowCount="2">
@@ -24,38 +24,52 @@
         <Button
             android:id="@+id/btnOrganizeCategory"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="0dp"
+            android:layout_rowWeight="1"
             android:layout_columnWeight="1"
             android:layout_marginEnd="4dp"
-            android:text="Organizar por Categoria"
-            android:enabled="false" />
+            android:layout_marginBottom="4dp"
+            android:enabled="false"
+            android:text="Org. / por Categoria"
+            android:textStyle="italic" />
 
         <Button
             android:id="@+id/btnOrganizeByDate"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="0dp"
+            android:layout_rowWeight="1"
             android:layout_columnWeight="1"
             android:layout_marginStart="4dp"
-            android:text="Organizar por Data"
-            android:enabled="false" />
+            android:layout_marginBottom="4dp"
+            android:enabled="false"
+            android:text="Org. / por Data"
+            android:textStyle="italic" />
 
         <Button
             android:id="@+id/btnCleanFiles"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="0dp"
+            android:layout_rowWeight="1"
             android:layout_columnWeight="1"
+            android:layout_marginTop="4dp"
             android:layout_marginEnd="4dp"
-            android:text="Limpar Arquivos"
-            android:enabled="false" />
+            android:enabled="false"
+            android:text="Del. / Arquivos Temp"
+            android:textStyle="italic" />
 
         <Button
             android:id="@+id/btnRemoveEmptyFolders"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="0dp"
+            android:layout_rowWeight="1"
             android:layout_columnWeight="1"
             android:layout_marginStart="4dp"
-            android:text="Remover Pastas Vazias"
-            android:enabled="false" />
+            android:layout_marginTop="4dp"
+            android:enabled="false"
+            android:text="Del. / Pastas Vazias"
+            android:textAlignment="center"
+            android:textStyle="italic" />
+
 
     </GridLayout>
 
@@ -72,7 +86,7 @@
 
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="497dp"
         android:layout_marginTop="8dp"
         android:layout_weight="1"
         android:background="#F1F1F1">
@@ -82,7 +96,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:padding="8dp"
-            android:text="Bem-vindo! Selecione sua pasta de Downloads para começar."
+            android:text="Bem-vindo! Selecione sua pasta para começar. Não selecione pastas do sistema "
             android:textAppearance="@style/TextAppearance.AppCompat.Small"
             android:textColor="#333333" />
     </ScrollView>
