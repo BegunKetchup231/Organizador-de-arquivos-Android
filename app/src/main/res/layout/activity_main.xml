@@ -57,7 +57,7 @@
             android:textColor="#696459"
             android:textSize="8.5sp"
             android:typeface="normal"
-            app:backgroundTint="#EDE7F6"
+            app:backgroundTint="#E9C46A"
             app:icon="@drawable/categoria"
             tools:ignore="TouchTargetSizeCheck" />
 
@@ -95,7 +95,7 @@
             android:textAppearance="@style/TextAppearance.AppCompat.Body1"
             android:textColor="#696459"
             android:textSize="8.5sp"
-            app:backgroundTint="#E9C46A"
+            app:backgroundTint="#EDE7F6"
             app:icon="@drawable/arquivos_temporarios"
             tools:ignore="TouchTargetSizeCheck" />
 
