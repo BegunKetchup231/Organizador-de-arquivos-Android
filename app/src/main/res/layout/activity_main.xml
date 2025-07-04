@@ -42,8 +42,8 @@
 
         <GridLayout
             android:layout_width="match_parent"
-            android:layout_height="92dp"
-            android:layout_marginTop="8dp"
+            android:layout_height="100dp"
+            android:layout_marginTop="20dp"
             android:columnCount="2"
             android:rowCount="2">
 
@@ -54,7 +54,7 @@
                 android:layout_rowWeight="1"
                 android:layout_columnWeight="1"
                 android:layout_marginEnd="4dp"
-                android:layout_marginBottom="4dp"
+                android:layout_marginBottom="-1dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
                 android:text="Organizar por Categoria"
@@ -76,7 +76,7 @@
                 android:layout_rowWeight="1"
                 android:layout_columnWeight="1"
                 android:layout_marginStart="4dp"
-                android:layout_marginBottom="4dp"
+                android:layout_marginBottom="-1dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
                 android:text="Organizar por Data"
@@ -94,7 +94,7 @@
                 android:layout_height="0dp"
                 android:layout_rowWeight="1"
                 android:layout_columnWeight="1"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="-1dp"
                 android:layout_marginEnd="4dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
@@ -113,7 +113,7 @@
                 android:layout_rowWeight="1"
                 android:layout_columnWeight="1"
                 android:layout_marginStart="4dp"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="-1dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
                 android:text="Pastas Vazias"

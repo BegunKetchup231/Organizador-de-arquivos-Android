@@ -143,13 +143,11 @@ class MainActivity : AppCompatActivity() {
     private fun observeProcessingState() {
         lifecycleScope.launch {
             isProcessing.collectLatest { processing ->
+                // 1. A atualização dos botões continua aqui, é essencial.
                 updateButtonStates()
-                if (processing) {
-                    progressBar.visibility = View.VISIBLE
-                    progressStatusText.visibility = View.VISIBLE
-                } else {
-                    progressBar.visibility = View.GONE
-                    progressStatusText.visibility = View.GONE
+
+                // 2. Apenas resetamos o progresso para 0% quando uma operação termina.
+                if (!processing) {
                     updateOperationProgress(0)
                 }
             }
