@@ -5,11 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.DocumentsContract
-import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.ProgressBar
@@ -46,19 +43,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRemoveEmptyFolders: Button
     private lateinit var btnOrganizeByDate: Button
 
-    // URI da pasta selecionada
-    private var downloadsTreeUri: Uri? = null
+    // URI da pasta selecionada pelo usuário
+    private var workDirectoryUri: Uri? = null
 
     // --- Constantes ---
-    private val PREFS_NAME = "DownloadOrganizerPrefs"
-    private val PREF_DOWNLOADS_URI = "downloads_uri"
+    private val PREFS_NAME = "OrganizerPrefs"
+    private val PREF_LAST_URI = "last_uri"
 
-    // --- ActivityResultLaunchers ---
+    // --- ActivityResultLauncher para o Storage Access Framework (SAF) ---
     private lateinit var openDocumentTreeLauncher: ActivityResultLauncher<Uri?>
-    // NOVO: Launcher para o resultado da tela de permissão
-    private lateinit var manageStoragePermissionLauncher: ActivityResultLauncher<Intent>
 
-    // Mapeamento de categorias e extensões (permanece igual)
+    // Mapeamento de categorias e extensões (inalterado)
     private val FILE_CATEGORIES = mapOf(
         ".jpg" to "Fotos", ".jpeg" to "Fotos", ".png" to "Fotos", ".gif" to "Fotos",
         ".bmp" to "Fotos", ".webp" to "Fotos", ".tiff" to "Fotos", ".tif" to "Fotos",
@@ -78,20 +73,17 @@ class MainActivity : AppCompatActivity() {
         ".bz2" to "Arquivos_Comuns", ".xz" to "Arquivos_Comuns", ".msi" to "Arquivos_Comuns",
         ".dmg" to "Arquivos_Comuns",
     )
-
     private val TEMP_EXTENSIONS = listOf(".tmp", ".bak", ".~tmp", ".~bak", ".temp", ".~lock")
-
     private val _isProcessing = MutableStateFlow(false)
     private val isProcessing = _isProcessing.asStateFlow()
-
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         initializeViews()
-        setupLaunchers() // NOVO: Agrupando inicialização dos launchers
-        loadDownloadsUri()
+        setupOpenDocumentTreeLauncher()
+        loadLastUsedUri()
         updateButtonStates()
         setupClickListeners()
         observeProcessingState()
@@ -110,44 +102,28 @@ class MainActivity : AppCompatActivity() {
         btnOrganizeByDate = findViewById(R.id.btnOrganizeByDate)
     }
 
-    // NOVO: Função para agrupar a inicialização dos launchers
-    private fun setupLaunchers() {
-        // Launcher para selecionar uma árvore de diretórios (SAF)
+    private fun setupOpenDocumentTreeLauncher() {
         openDocumentTreeLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             uri?.let {
+                // Persiste a permissão de acesso para esta pasta
                 contentResolver.takePersistableUriPermission(
                     it,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
-                downloadsTreeUri = it
-                saveDownloadsUri(it)
-                updateStatus("Pasta selecionada com sucesso: ${it.path}")
+                workDirectoryUri = it
+                saveLastUsedUri(it) // Salva a URI para uso futuro
+                updateStatus("Pasta selecionada: ${it.path}")
                 updateButtonStates()
             } ?: run {
                 updateStatus("Seleção de pasta cancelada.")
             }
         }
-
-        // NOVO: Launcher para tratar o retorno da tela de permissão de acesso total
-        manageStoragePermissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            // Verifica se a permissão foi concedida após o usuário voltar da tela de Configurações
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                if (Environment.isExternalStorageManager()) {
-                    updateStatus("Permissão de acesso a todos os arquivos concedida!")
-                    tryToLoadDownloadsFolder() // Tenta carregar a pasta Downloads automaticamente
-                } else {
-                    updateStatus("A permissão de acesso a todos os arquivos não foi concedida.")
-                    showPermissionDeniedDialog()
-                }
-            }
-        }
     }
 
     private fun setupClickListeners() {
-        // NOVO: O botão principal agora chama a verificação de permissão
-        btnSelectDownloads.setOnClickListener { checkAndRequestPermissions() }
+        // O botão agora chama diretamente o seletor de pastas
+        btnSelectDownloads.setOnClickListener { selectFolder() }
 
-        // O resto permanece igual
         btnOrganizeCategory.setOnClickListener {
             showConfirmationDialog("Organizar por Categoria", "Isso moverá arquivos e pastas. Deseja continuar?", ::organizeFilesInCategory)
         }
@@ -162,9 +138,64 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // O resto do seu código não foi alterado...
-    // ...
-    // A única alteração foi a adição das funções de permissão abaixo.
+    private fun observeProcessingState() {
+        lifecycleScope.launch {
+            isProcessing.collectLatest { processing ->
+                updateButtonStates()
+                if (processing) {
+                    progressBar.visibility = View.VISIBLE
+                    progressStatusText.visibility = View.VISIBLE
+                } else {
+                    progressBar.visibility = View.GONE
+                    progressStatusText.visibility = View.GONE
+                    updateOperationProgress(0)
+                }
+            }
+        }
+    }
+
+    // --- Gerenciamento da URI e Estado da UI ---
+
+    private fun saveLastUsedUri(uri: Uri?) {
+        val prefs: SharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit { putString(PREF_LAST_URI, uri?.toString()) }
+    }
+
+    private fun loadLastUsedUri() {
+        val prefs: SharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val uriString = prefs.getString(PREF_LAST_URI, null)
+        if (uriString.isNullOrEmpty()) return
+
+        try {
+            val uri = uriString.toUri()
+            if (contentResolver.persistedUriPermissions.any { it.uri == uri }) {
+                val documentFile = DocumentFile.fromTreeUri(this, uri)
+                if (documentFile != null && documentFile.exists()) {
+                    workDirectoryUri = uri
+                    updateStatus("Última pasta usada carregada: ${documentFile.name ?: uri.path}")
+                } else {
+                    updateStatus("A pasta salva não existe mais. Por favor, selecione novamente.")
+                    saveLastUsedUri(null)
+                }
+            } else {
+                updateStatus("Permissão para a pasta salva foi perdida. Por favor, selecione novamente.")
+                saveLastUsedUri(null)
+            }
+        } catch (e: Exception) {
+            updateStatus("Erro ao carregar pasta salva. Por favor, selecione novamente.")
+            saveLastUsedUri(null)
+        }
+    }
+
+    private fun updateButtonStates() {
+        val isFolderSelected = workDirectoryUri != null
+        val processing = isProcessing.value
+        btnSelectDownloads.isEnabled = !processing
+        btnOrganizeCategory.isEnabled = isFolderSelected && !processing
+        btnOrganizeByDate.isEnabled = isFolderSelected && !processing
+        btnCleanFiles.isEnabled = isFolderSelected && !processing
+        btnRemoveEmptyFolders.isEnabled = isFolderSelected && !processing
+    }
 
     // --- Funções de UI (Diálogo, Status, Progresso) ---
 
@@ -180,133 +211,10 @@ class MainActivity : AppCompatActivity() {
             }.show()
     }
 
-    // NOVO: Lógica completa para verificar e pedir a permissão de acesso total
-    private fun checkAndRequestPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // Permissão existe a partir do Android 11
-            if (Environment.isExternalStorageManager()) {
-                // Permissão já está concedida, carrega a pasta Downloads
-                updateStatus("Permissão já concedida. Carregando pasta Downloads...")
-                tryToLoadDownloadsFolder()
-            } else {
-                // Permissão não concedida, abre a tela de configurações para o usuário conceder
-                try {
-                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-                    intent.data = Uri.fromParts("package", packageName, null)
-                    manageStoragePermissionLauncher.launch(intent)
-                } catch (e: Exception) {
-                    updateStatus("Não foi possível abrir a tela de permissão. Selecione a pasta manualmente.")
-                    selectDownloadsFolderWithSAF() // Fallback para o seletor manual
-                }
-            }
-        } else {
-            // Para Android 10 e inferior, usa o método antigo de seleção manual
-            selectDownloadsFolderWithSAF()
-        }
-    }
-
-    // NOVO: Tenta carregar a pasta Downloads automaticamente uma vez que a permissão é concedida
-    private fun tryToLoadDownloadsFolder() {
-        try {
-            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val documentFile = DocumentFile.fromFile(downloadsDir)
-            if (documentFile.canRead()) {
-                downloadsTreeUri = documentFile.uri
-                // Persiste a permissão para acesso futuro, embora com MANAGE_EXTERNAL_STORAGE não seja estritamente necessário
-                contentResolver.takePersistableUriPermission(
-                    downloadsTreeUri!!,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-                saveDownloadsUri(downloadsTreeUri)
-                updateStatus("Pasta Downloads carregada automaticamente!")
-                updateButtonStates()
-            } else {
-                updateStatus("Não foi possível acessar a pasta Downloads. Selecione manualmente.")
-                selectDownloadsFolderWithSAF()
-            }
-        } catch (e: Exception) {
-            updateStatus("Erro ao acessar a pasta Downloads: ${e.message}")
-            selectDownloadsFolderWithSAF()
-        }
-    }
-
-    // NOVO: Diálogo para informar o usuário caso ele negue a permissão
-    private fun showPermissionDeniedDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("Permissão Necessária")
-            .setMessage("Para carregar a pasta Downloads automaticamente, o app precisa da permissão de 'Acesso a todos os arquivos'. Você ainda pode selecionar a pasta manualmente.")
-            .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
-            .show()
-    }
-
-    // NOVO: Função antiga renomeada para ser o método de fallback (seleção manual)
-    private fun selectDownloadsFolderWithSAF() {
-        updateStatus("Por favor, selecione sua pasta")
+    // Função simplificada para abrir o seletor de pastas
+    private fun selectFolder() {
+        updateStatus("Por favor, selecione a pasta que deseja organizar")
         openDocumentTreeLauncher.launch(null)
-    }
-
-    // Todas as suas funções originais de status, progresso, auxiliares e de organização permanecem aqui, intactas...
-    // ...
-    // [SEU CÓDIGO ORIGINAL E INALTERADO VAI AQUI]
-    // ...
-
-    // --- Gerenciamento da URI de Downloads e Estado da UI ---
-
-    private fun observeProcessingState() {
-        lifecycleScope.launch {
-            isProcessing.collectLatest { processing ->
-                updateButtonStates()
-                if (processing) {
-                    progressBar.visibility = View.VISIBLE
-                    progressStatusText.visibility = View.VISIBLE
-                } else {
-                    progressBar.visibility = View.GONE
-                    progressStatusText.visibility = View.GONE
-                    // Reseta o progresso para a próxima operação
-                    updateOperationProgress(0)
-                }
-            }
-        }
-    }
-
-    private fun saveDownloadsUri(uri: Uri?) {
-        val prefs: SharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit { putString(PREF_DOWNLOADS_URI, uri?.toString()) }
-    }
-
-    private fun loadDownloadsUri() {
-        val prefs: SharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val uriString = prefs.getString(PREF_DOWNLOADS_URI, null)
-        if (uriString.isNullOrEmpty()) return
-
-        try {
-            val uri = uriString.toUri()
-            if (contentResolver.persistedUriPermissions.any { it.uri == uri }) {
-                val documentFile = DocumentFile.fromTreeUri(this, uri)
-                if (documentFile != null && documentFile.exists()) {
-                    downloadsTreeUri = uri
-                    updateStatus("Pasta carregada: ${documentFile.name ?: uri.path}")
-                } else {
-                    updateStatus("Pasta salva não existe. Selecione novamente.")
-                    saveDownloadsUri(null)
-                }
-            } else {
-                updateStatus("Permissão perdida. Selecione a pasta novamente.")
-                saveDownloadsUri(null)
-            }
-        } catch (e: Exception) {
-            updateStatus("Erro ao carregar URI. Selecione a pasta novamente.")
-            saveDownloadsUri(null)
-        }
-    }
-
-    private fun updateButtonStates() {
-        val isFolderSelected = downloadsTreeUri != null
-        val processing = isProcessing.value
-        btnSelectDownloads.isEnabled = !processing
-        btnOrganizeCategory.isEnabled = isFolderSelected && !processing
-        btnOrganizeByDate.isEnabled = isFolderSelected && !processing
-        btnCleanFiles.isEnabled = isFolderSelected && !processing
-        btnRemoveEmptyFolders.isEnabled = isFolderSelected && !processing
     }
 
     private fun updateStatus(message: String) {
@@ -321,6 +229,8 @@ class MainActivity : AppCompatActivity() {
             progressStatusText.text = "Progresso - ($percentage%)"
         }
     }
+
+    // --- Funções Auxiliares de Arquivo ---
 
     private fun DocumentFile.getExtension(): String {
         return this.name?.substringAfterLast('.', "")?.lowercase(Locale.ROOT) ?: ""
@@ -338,6 +248,10 @@ class MainActivity : AppCompatActivity() {
         return String.format(Locale.getDefault(), "%.1f %s", size, units[i])
     }
 
+    // As funções de manipulação de arquivos (moveFile, etc.) e as funções de organização
+    // (organizeFilesInCategory, etc.) permanecem exatamente as mesmas,
+    // pois elas já trabalham com a URI que o usuário seleciona.
+    // ...
     private fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String): DocumentFile? {
         try {
             val fileWithFinalName = if (fileToMove.name != finalFileName) {
@@ -375,9 +289,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
     private fun organizeFilesInCategory() {
-        val uri = downloadsTreeUri ?: return
+        val uri = workDirectoryUri ?: return
         lifecycleScope.launch {
             _isProcessing.value = true
             updateStatus("\n--- Iniciando Organização por Categoria ---")
@@ -389,16 +302,19 @@ class MainActivity : AppCompatActivity() {
                     val filesToMove = items.filter { it.isFile && !it.name.orEmpty().startsWith('.') }
                     val foldersToMove = items.filter { it.isDirectory && it.name !in foldersToIgnore }
                     val totalItems = filesToMove.size + foldersToMove.size
+
                     if (totalItems == 0) {
                         updateStatus("Nenhum item para organizar.")
                         return@withContext
                     }
+
                     val mainArchiveFolder = findOrCreateDirectory(root, "Arquivos")!!
                     val organizedFoldersBase = findOrCreateDirectory(root, "Pastas_Organizadas")!!
                     var movedFilesCount = 0
                     var movedFoldersCount = 0
                     var itemsProcessed = 0
 
+                    // --- 1. Mover Pastas (Esta parte já estava correta) ---
                     val existingFolderNames = organizedFoldersBase.listFiles().mapNotNull { it.name }.toMutableSet()
                     foldersToMove.forEach { folder ->
                         var finalFolderName = folder.name!!
@@ -414,14 +330,23 @@ class MainActivity : AppCompatActivity() {
                             updateStatus("Falha ao mover pasta: '${folder.name}'")
                         }
                         itemsProcessed++
-                        updateOperationProgress((itemsProcessed * 100) / totalItems) // ATUALIZADO
+                        updateOperationProgress((itemsProcessed * 100) / totalItems)
                     }
 
+                    // --- 2. Mover Arquivos (Correção aplicada aqui) ---
                     filesToMove.forEach { file ->
                         val extension = file.getExtension()
                         val categoryName = FILE_CATEGORIES.getOrDefault(extension, "Diversos")
+
                         val categoryFolder = findOrCreateDirectory(mainArchiveFolder, categoryName)!!
-                        val finalDestFolder = findOrCreateDirectory(categoryFolder, extension.uppercase(Locale.ROOT))!!
+
+                        // --- INÍCIO DA CORREÇÃO ---
+                        // Monta o nome da subpasta corretamente (ex: "Videos.MP4" ou "Fotos.JPG")
+                        val extensionWithoutDot = extension.removePrefix(".")
+                        val finalSubFolderName = "${categoryName}.${extensionWithoutDot.uppercase(Locale.ROOT)}"
+                        val finalDestFolder = findOrCreateDirectory(categoryFolder, finalSubFolderName)!!
+                        // --- FIM DA CORREGEÇÃO ---
+
                         var finalFileName = file.name!!
                         if (finalDestFolder.findFile(finalFileName) != null) {
                             val baseName = finalFileName.substringBeforeLast('.')
@@ -429,14 +354,16 @@ class MainActivity : AppCompatActivity() {
                             var suffix = 1
                             do { finalFileName = "${baseName}_${suffix++}.$ext" } while (finalDestFolder.findFile(finalFileName) != null)
                         }
+
                         if (moveFile(file, finalDestFolder, finalFileName) != null) {
                             movedFilesCount++
                         } else {
                             updateStatus("Falha ao mover arquivo: '${file.name}'")
                         }
                         itemsProcessed++
-                        updateOperationProgress((itemsProcessed * 100) / totalItems) // ATUALIZADO
+                        updateOperationProgress((itemsProcessed * 100) / totalItems)
                     }
+
                     updateStatus("\n--- Resumo: $movedFoldersCount pastas e $movedFilesCount arquivos movidos.")
                 }
             } catch (e: Exception) {
@@ -446,9 +373,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
     private fun cleanFiles() {
-        val uri = downloadsTreeUri ?: return
+        val uri = workDirectoryUri ?: return // Alterado para workDirectoryUri
         lifecycleScope.launch {
             _isProcessing.value = true
             updateStatus("\n--- Iniciando Limpeza de Arquivos ---")
@@ -478,7 +404,7 @@ class MainActivity : AppCompatActivity() {
                         } else {
                             updateStatus("Falha ao remover: ${file.name}")
                         }
-                        updateOperationProgress(((index + 1) * 100) / filesToDelete.size) // ATUALIZADO
+                        updateOperationProgress(((index + 1) * 100) / filesToDelete.size)
                     }
                     updateStatus("\n--- Resumo: $removedFilesCount arquivos removidos (${convertBytes(totalFreedSpace)} liberados).")
                 }
@@ -491,7 +417,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun removeEmptyFolders() {
-        val uri = downloadsTreeUri ?: return
+        val uri = workDirectoryUri ?: return // Alterado para workDirectoryUri
         lifecycleScope.launch {
             _isProcessing.value = true
             updateStatus("\n--- Iniciando Remoção de Pastas Vazias ---")
@@ -527,7 +453,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun organizeByDate() {
-        val uri = downloadsTreeUri ?: return
+        val uri = workDirectoryUri ?: return // Alterado para workDirectoryUri
         lifecycleScope.launch {
             _isProcessing.value = true
             updateStatus("\n--- Iniciando Organização por Data ---")
