@@ -8,11 +8,18 @@
     android:padding="16dp"
     tools:context=".MainActivity">
 
+    <ImageView
+        android:id="@+id/imageView2"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
     <Button
         android:id="@+id/btnSelectDownloads"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="> Selecione a pasta para iniciar" />
+        android:fontFamily="@font/geo"
+        android:text="Comece por aqui"
+        android:textSize="34sp" />
 
     <GridLayout
         android:layout_width="match_parent"
@@ -30,8 +37,8 @@
             android:layout_marginEnd="4dp"
             android:layout_marginBottom="4dp"
             android:enabled="false"
-            android:text="Org. / por Categoria"
-            android:textStyle="italic"
+            android:fontFamily="@font/geo"
+            android:text="Organizar por Categoria"
             tools:ignore="TouchTargetSizeCheck" />
 
         <Button
@@ -43,8 +50,8 @@
             android:layout_marginStart="4dp"
             android:layout_marginBottom="4dp"
             android:enabled="false"
-            android:text="Org. / por Data"
-            android:textStyle="italic"
+            android:fontFamily="@font/geo"
+            android:text="Organizar por Data"
             tools:ignore="TouchTargetSizeCheck" />
 
         <Button
@@ -56,8 +63,8 @@
             android:layout_marginTop="4dp"
             android:layout_marginEnd="4dp"
             android:enabled="false"
-            android:text="Del. / Arquivos Temp"
-            android:textStyle="italic"
+            android:fontFamily="@font/geo"
+            android:text="Arquivos Temporários"
             tools:ignore="TouchTargetSizeCheck" />
 
         <Button
@@ -69,9 +76,9 @@
             android:layout_marginStart="4dp"
             android:layout_marginTop="4dp"
             android:enabled="false"
-            android:text="Del. / Pastas Vazias"
+            android:fontFamily="@font/geo"
+            android:text="Pastas Vazias"
             android:textAlignment="center"
-            android:textStyle="italic"
             tools:ignore="TouchTargetSizeCheck" />
 
 
@@ -81,6 +88,7 @@
         android:id="@+id/progressStatusText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:fontFamily="@font/aldrich"
         android:text="Progresso - (0%)"
         android:textAlignment="center"
         android:textStyle="italic" />
