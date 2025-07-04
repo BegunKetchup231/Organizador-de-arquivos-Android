@@ -51,6 +51,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation(libs.androidx.gridlayout)
 
+    implementation("com.google.android.gms:play-services-ads:24.4.0")
+
     // Dependências de Teste (mantidas como libs. pois costumam funcionar bem)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

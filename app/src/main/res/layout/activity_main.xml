@@ -2,157 +2,178 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    xmlns:ads="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#323C47"
     android:orientation="vertical"
-    android:padding="16dp"
     tools:context=".MainActivity">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/topAppBar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="#00FFFFFF"
-        app:logo="@drawable/techjanitorlogo"
-        app:titleTextColor="#7EA1C4" />
-
-    <ImageView
-        android:id="@+id/imageView2"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
-
-    <Button
-        android:id="@+id/btnSelectDownloads"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/jetbrains_mono_regular"
-        android:text="Comece por aqui"
-        android:textColor="#80C3ED"
-        android:textSize="16sp"
-        app:backgroundTint="#37474F"
-        app:icon="@drawable/pasta" />
-
-    <GridLayout
-        android:layout_width="match_parent"
-        android:layout_height="92dp"
-        android:layout_marginTop="8dp"
-        android:columnCount="2"
-        android:rowCount="2">
-
-        <Button
-            android:id="@+id/btnOrganizeCategory"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_rowWeight="1"
-            android:layout_columnWeight="1"
-            android:layout_marginEnd="4dp"
-            android:layout_marginBottom="4dp"
-            android:enabled="false"
-            android:fontFamily="@font/jetbrains_mono_regular"
-            android:text="Organizar por Categoria"
-            android:textAlignment="center"
-            android:textAllCaps="false"
-            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-            android:textColor="#696459"
-            android:textSize="8.5sp"
-            android:typeface="normal"
-            app:backgroundTint="#E9C46A"
-            app:icon="@drawable/categoria"
-            tools:ignore="TouchTargetSizeCheck" />
-
-
-        <Button
-            android:id="@+id/btnOrganizeByDate"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_rowWeight="1"
-            android:layout_columnWeight="1"
-            android:layout_marginStart="4dp"
-            android:layout_marginBottom="4dp"
-            android:enabled="false"
-            android:fontFamily="@font/jetbrains_mono_regular"
-            android:text="Organizar por Data"
-            android:textAllCaps="false"
-            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-            android:textColor="#696459"
-            android:textSize="8.5sp"
-            app:backgroundTint="#E9C46A"
-            app:icon="@drawable/data"
-            tools:ignore="TouchTargetSizeCheck" />
-
-        <Button
-            android:id="@+id/btnCleanFiles"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_rowWeight="1"
-            android:layout_columnWeight="1"
-            android:layout_marginTop="4dp"
-            android:layout_marginEnd="4dp"
-            android:enabled="false"
-            android:fontFamily="@font/jetbrains_mono_regular"
-            android:text="Arquivos Temporários"
-            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-            android:textColor="#696459"
-            android:textSize="8.5sp"
-            app:backgroundTint="#EDE7F6"
-            app:icon="@drawable/arquivos_temporarios"
-            tools:ignore="TouchTargetSizeCheck" />
-
-        <Button
-            android:id="@+id/btnRemoveEmptyFolders"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_rowWeight="1"
-            android:layout_columnWeight="1"
-            android:layout_marginStart="4dp"
-            android:layout_marginTop="4dp"
-            android:enabled="false"
-            android:fontFamily="@font/jetbrains_mono_regular"
-            android:text="Pastas Vazias"
-            android:textAlignment="center"
-            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-            android:textColor="#696459"
-            android:textSize="8.5sp"
-            app:backgroundTint="#EDE7F6"
-            app:icon="@drawable/pasta_vazia"
-            tools:ignore="TouchTargetSizeCheck" />
-    </GridLayout>
-
-    <TextView
-        android:id="@+id/progressStatusText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="@font/aldrich"
-        android:text="Progresso - (0%)"
-        android:textAlignment="center"
-        android:textColor="#F8FCFF"
-        android:textStyle="bold" />
-
-    <ProgressBar
-        android:id="@+id/progressBar"
-        android:layout_width="match_parent"
-        android:layout_height="20dp"
-        android:progressDrawable="@drawable/custom_progressbar"
-        tools:progress="50" />
-
-
-    <ScrollView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
         android:layout_weight="1"
-        android:background="#F5EFE6"
-        android:padding="8dp">
+        android:orientation="vertical"
+        android:padding="16dp">
 
-        <TextView
-            android:id="@+id/tvStatus"
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/topAppBar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="#00FFFFFF"
+            app:logo="@drawable/techjanitorlogo"
+            app:titleTextColor="#7EA1C4" />
+
+        <ImageView
+            android:id="@+id/imageView2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/btnSelectDownloads"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:fontFamily="@font/jetbrains_mono_regular"
-            android:text="Bem-vindo! Selecione sua pasta para começar. Não selecione pastas do sistema "
-            android:textAppearance="@style/TextAppearance.AppCompat.Small"
-            android:textColor="#696459" />
-    </ScrollView>
+            android:text="Comece por aqui"
+            android:textColor="#80C3ED"
+            android:textSize="16sp"
+            app:backgroundTint="#37474F"
+            app:icon="@drawable/pasta" />
 
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="92dp"
+            android:layout_marginTop="8dp"
+            android:columnCount="2"
+            android:rowCount="2">
+
+            <Button
+                android:id="@+id/btnOrganizeCategory"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_rowWeight="1"
+                android:layout_columnWeight="1"
+                android:layout_marginEnd="4dp"
+                android:layout_marginBottom="4dp"
+                android:enabled="false"
+                android:fontFamily="@font/jetbrains_mono_regular"
+                android:text="Organizar por Categoria"
+                android:textAlignment="center"
+                android:textAllCaps="false"
+                android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+                android:textColor="#696459"
+                android:textSize="8.5sp"
+                android:typeface="normal"
+                app:backgroundTint="#E9C46A"
+                app:icon="@drawable/categoria"
+                tools:ignore="TouchTargetSizeCheck" />
+
+
+            <Button
+                android:id="@+id/btnOrganizeByDate"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_rowWeight="1"
+                android:layout_columnWeight="1"
+                android:layout_marginStart="4dp"
+                android:layout_marginBottom="4dp"
+                android:enabled="false"
+                android:fontFamily="@font/jetbrains_mono_regular"
+                android:text="Organizar por Data"
+                android:textAllCaps="false"
+                android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+                android:textColor="#696459"
+                android:textSize="8.5sp"
+                app:backgroundTint="#E9C46A"
+                app:icon="@drawable/data"
+                tools:ignore="TouchTargetSizeCheck" />
+
+            <Button
+                android:id="@+id/btnCleanFiles"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_rowWeight="1"
+                android:layout_columnWeight="1"
+                android:layout_marginTop="4dp"
+                android:layout_marginEnd="4dp"
+                android:enabled="false"
+                android:fontFamily="@font/jetbrains_mono_regular"
+                android:text="Arquivos Temporários"
+                android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+                android:textColor="#696459"
+                android:textSize="8.5sp"
+                app:backgroundTint="#EDE7F6"
+                app:icon="@drawable/arquivos_temporarios"
+                tools:ignore="TouchTargetSizeCheck" />
+
+            <Button
+                android:id="@+id/btnRemoveEmptyFolders"
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_rowWeight="1"
+                android:layout_columnWeight="1"
+                android:layout_marginStart="4dp"
+                android:layout_marginTop="4dp"
+                android:enabled="false"
+                android:fontFamily="@font/jetbrains_mono_regular"
+                android:text="Pastas Vazias"
+                android:textAlignment="center"
+                android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+                android:textColor="#696459"
+                android:textSize="8.5sp"
+                app:backgroundTint="#EDE7F6"
+                app:icon="@drawable/pasta_vazia"
+                tools:ignore="TouchTargetSizeCheck" />
+        </GridLayout>
+
+        <LinearLayout
+            android:id="@+id/progress_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginTop="8dp"
+            android:visibility="visible"> <TextView
+            android:id="@+id/progressStatusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/aldrich"
+            android:text="Progresso - (0%)"
+            android:textAlignment="center"
+            android:textColor="#F8FCFF"
+            android:textStyle="bold"/>
+
+            <ProgressBar
+                android:id="@+id/progressBar"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="20dp"
+                android:progressDrawable="@drawable/custom_progressbar"
+                tools:progress="0" />
+
+        </LinearLayout>
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="8dp"
+            android:layout_weight="1"
+            android:background="#F5EFE6"
+            android:padding="8dp">
+
+            <TextView
+                android:id="@+id/tvStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/jetbrains_mono_regular"
+                android:text="Bem-vindo! Selecione sua pasta para começar. Não selecione pastas do sistema "
+                android:textAppearance="@style/TextAppearance.AppCompat.Small"
+                android:textColor="#696459" />
+        </ScrollView>
+    </LinearLayout>
+
+    <com.google.android.gms.ads.AdView
+        android:id="@+id/adView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        ads:adSize="BANNER"
+        ads:adUnitId="ca-app-pub-3940256099942544/6300978111" />
 </LinearLayout>

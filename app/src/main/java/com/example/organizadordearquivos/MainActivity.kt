@@ -31,6 +31,9 @@ import java.util.Locale
 import kotlin.math.log2
 import kotlin.math.pow
 import kotlin.random.Random
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.MobileAds
 
 class MainActivity : AppCompatActivity() {
 
@@ -44,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRemoveEmptyFolders: Button
     private lateinit var btnOrganizeByDate: Button
 
+    private lateinit var mAdView: AdView
     private var workDirectoryUri: Uri? = null
     private val PREFS_NAME = "OrganizerPrefs"
     private val PREF_LAST_URI = "last_uri"
@@ -75,6 +79,14 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // 1. Inicializa o Mobile Ads SDK
+        MobileAds.initialize(this) {}
+        // 2. Encontra o AdView no layout
+        mAdView = findViewById(R.id.adView)
+        // 3. Cria a requisição e carrega o banner
+        val adRequest = AdRequest.Builder().build()
+        mAdView.loadAd(adRequest)
 
         initializeViews()
         setupOpenDocumentTreeLauncher()
