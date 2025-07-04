@@ -30,6 +30,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.log2
 import kotlin.math.pow
+import kotlin.random.Random
 
 class MainActivity : AppCompatActivity() {
 
@@ -43,17 +44,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRemoveEmptyFolders: Button
     private lateinit var btnOrganizeByDate: Button
 
-    // URI da pasta selecionada pelo usuário
     private var workDirectoryUri: Uri? = null
-
-    // --- Constantes ---
     private val PREFS_NAME = "OrganizerPrefs"
     private val PREF_LAST_URI = "last_uri"
-
-    // --- ActivityResultLauncher para o Storage Access Framework (SAF) ---
     private lateinit var openDocumentTreeLauncher: ActivityResultLauncher<Uri?>
 
-    // Mapeamento de categorias e extensões (inalterado)
     private val FILE_CATEGORIES = mapOf(
         ".jpg" to "Fotos", ".jpeg" to "Fotos", ".png" to "Fotos", ".gif" to "Fotos",
         ".bmp" to "Fotos", ".webp" to "Fotos", ".tiff" to "Fotos", ".tif" to "Fotos",
@@ -89,8 +84,6 @@ class MainActivity : AppCompatActivity() {
         observeProcessingState()
     }
 
-    // --- Funções de Inicialização ---
-
     private fun initializeViews() {
         tvStatus = findViewById(R.id.tvStatus)
         progressBar = findViewById(R.id.progressBar)
@@ -105,13 +98,12 @@ class MainActivity : AppCompatActivity() {
     private fun setupOpenDocumentTreeLauncher() {
         openDocumentTreeLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             uri?.let {
-                // Persiste a permissão de acesso para esta pasta
                 contentResolver.takePersistableUriPermission(
                     it,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
                 workDirectoryUri = it
-                saveLastUsedUri(it) // Salva a URI para uso futuro
+                saveLastUsedUri(it)
                 updateStatus("Pasta selecionada: ${it.path}")
                 updateButtonStates()
             } ?: run {
@@ -121,9 +113,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupClickListeners() {
-        // O botão agora chama diretamente o seletor de pastas
         btnSelectDownloads.setOnClickListener { selectFolder() }
-
         btnOrganizeCategory.setOnClickListener {
             showConfirmationDialog("Organizar por Categoria", "Isso moverá arquivos e pastas. Deseja continuar?", ::organizeFilesInCategory)
         }
@@ -153,8 +143,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-    // --- Gerenciamento da URI e Estado da UI ---
 
     private fun saveLastUsedUri(uri: Uri?) {
         val prefs: SharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -197,8 +185,6 @@ class MainActivity : AppCompatActivity() {
         btnRemoveEmptyFolders.isEnabled = isFolderSelected && !processing
     }
 
-    // --- Funções de UI (Diálogo, Status, Progresso) ---
-
     private fun showConfirmationDialog(title: String, message: String, onConfirm: () -> Unit) {
         AlertDialog.Builder(this).setTitle(title).setMessage(message)
             .setPositiveButton("Confirmar") { dialog, _ ->
@@ -211,7 +197,6 @@ class MainActivity : AppCompatActivity() {
             }.show()
     }
 
-    // Função simplificada para abrir o seletor de pastas
     private fun selectFolder() {
         updateStatus("Por favor, selecione a pasta que deseja organizar")
         openDocumentTreeLauncher.launch(null)
@@ -230,10 +215,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- Funções Auxiliares de Arquivo ---
-
     private fun DocumentFile.getExtension(): String {
-        return this.name?.substringAfterLast('.', "")?.lowercase(Locale.ROOT) ?: ""
+        val fileName = this.name ?: return ""
+        val dotIndex = fileName.lastIndexOf('.')
+        return if (dotIndex > 0) {
+            fileName.substring(dotIndex).lowercase(Locale.ROOT)
+        } else {
+            ""
+        }
     }
 
     private fun findOrCreateDirectory(parent: DocumentFile, name: String): DocumentFile? {
@@ -248,10 +237,6 @@ class MainActivity : AppCompatActivity() {
         return String.format(Locale.getDefault(), "%.1f %s", size, units[i])
     }
 
-    // As funções de manipulação de arquivos (moveFile, etc.) e as funções de organização
-    // (organizeFilesInCategory, etc.) permanecem exatamente as mesmas,
-    // pois elas já trabalham com a URI que o usuário seleciona.
-    // ...
     private fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String): DocumentFile? {
         try {
             val fileWithFinalName = if (fileToMove.name != finalFileName) {
@@ -289,6 +274,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
     private fun organizeFilesInCategory() {
         val uri = workDirectoryUri ?: return
         lifecycleScope.launch {
@@ -308,62 +294,59 @@ class MainActivity : AppCompatActivity() {
                         return@withContext
                     }
 
-                    val mainArchiveFolder = findOrCreateDirectory(root, "Arquivos")!!
-                    val organizedFoldersBase = findOrCreateDirectory(root, "Pastas_Organizadas")!!
                     var movedFilesCount = 0
                     var movedFoldersCount = 0
                     var itemsProcessed = 0
 
-                    // --- 1. Mover Pastas (Esta parte já estava correta) ---
-                    val existingFolderNames = organizedFoldersBase.listFiles().mapNotNull { it.name }.toMutableSet()
-                    foldersToMove.forEach { folder ->
-                        var finalFolderName = folder.name!!
-                        if (existingFolderNames.contains(finalFolderName)) {
-                            var suffix = 1
-                            do { finalFolderName = "${folder.name}_${suffix++}" } while (existingFolderNames.contains(finalFolderName))
+                    if (foldersToMove.isNotEmpty()) {
+                        val organizedFoldersBase = findOrCreateDirectory(root, "Pastas_Organizadas")!!
+                        val existingFolderNames = organizedFoldersBase.listFiles().mapNotNull { it.name }.toMutableSet()
+                        foldersToMove.forEach { folder ->
+                            var finalFolderName = folder.name!!
+                            if (existingFolderNames.contains(finalFolderName)) {
+                                var suffix = 1
+                                do { finalFolderName = "${folder.name}_${suffix++}" } while (existingFolderNames.contains(finalFolderName))
+                            }
+                            if (moveFile(folder, organizedFoldersBase, finalFolderName) != null) {
+                                updateStatus("Pasta movida: '$finalFolderName'")
+                                movedFoldersCount++
+                                existingFolderNames.add(finalFolderName)
+                            } else {
+                                updateStatus("Falha ao mover pasta: '${folder.name}'")
+                            }
+                            itemsProcessed++
+                            updateOperationProgress((itemsProcessed * 100) / totalItems)
                         }
-                        if (moveFile(folder, organizedFoldersBase, finalFolderName) != null) {
-                            updateStatus("Pasta movida: '$finalFolderName'")
-                            movedFoldersCount++
-                            existingFolderNames.add(finalFolderName)
-                        } else {
-                            updateStatus("Falha ao mover pasta: '${folder.name}'")
-                        }
-                        itemsProcessed++
-                        updateOperationProgress((itemsProcessed * 100) / totalItems)
                     }
 
-                    // --- 2. Mover Arquivos (Correção aplicada aqui) ---
-                    filesToMove.forEach { file ->
-                        val extension = file.getExtension()
-                        val categoryName = FILE_CATEGORIES.getOrDefault(extension, "Diversos")
+                    if (filesToMove.isNotEmpty()){
+                        val mainArchiveFolder = findOrCreateDirectory(root, "Arquivos")!!
+                        filesToMove.forEach { file ->
+                            val extension = file.getExtension()
+                            val categoryName = FILE_CATEGORIES.getOrDefault(extension, "Diversos")
+                            val categoryFolder = findOrCreateDirectory(mainArchiveFolder, categoryName)!!
 
-                        val categoryFolder = findOrCreateDirectory(mainArchiveFolder, categoryName)!!
+                            val extensionWithoutDot = extension.removePrefix(".")
+                            val finalSubFolderName = "${categoryName}.${extensionWithoutDot.uppercase(Locale.ROOT)}"
+                            val finalDestFolder = findOrCreateDirectory(categoryFolder, finalSubFolderName)!!
 
-                        // --- INÍCIO DA CORREÇÃO ---
-                        // Monta o nome da subpasta corretamente (ex: "Videos.MP4" ou "Fotos.JPG")
-                        val extensionWithoutDot = extension.removePrefix(".")
-                        val finalSubFolderName = "${categoryName}.${extensionWithoutDot.uppercase(Locale.ROOT)}"
-                        val finalDestFolder = findOrCreateDirectory(categoryFolder, finalSubFolderName)!!
-                        // --- FIM DA CORREGEÇÃO ---
+                            var finalFileName = file.name!!
+                            if (finalDestFolder.findFile(finalFileName) != null) {
+                                val baseName = finalFileName.substringBeforeLast('.')
+                                val ext = finalFileName.substringAfterLast('.')
+                                var suffix = 1
+                                do { finalFileName = "${baseName}_${suffix++}.$ext" } while (finalDestFolder.findFile(finalFileName) != null)
+                            }
 
-                        var finalFileName = file.name!!
-                        if (finalDestFolder.findFile(finalFileName) != null) {
-                            val baseName = finalFileName.substringBeforeLast('.')
-                            val ext = finalFileName.substringAfterLast('.')
-                            var suffix = 1
-                            do { finalFileName = "${baseName}_${suffix++}.$ext" } while (finalDestFolder.findFile(finalFileName) != null)
+                            if (moveFile(file, finalDestFolder, finalFileName) != null) {
+                                movedFilesCount++
+                            } else {
+                                updateStatus("Falha ao mover arquivo: '${file.name}'")
+                            }
+                            itemsProcessed++
+                            updateOperationProgress((itemsProcessed * 100) / totalItems)
                         }
-
-                        if (moveFile(file, finalDestFolder, finalFileName) != null) {
-                            movedFilesCount++
-                        } else {
-                            updateStatus("Falha ao mover arquivo: '${file.name}'")
-                        }
-                        itemsProcessed++
-                        updateOperationProgress((itemsProcessed * 100) / totalItems)
                     }
-
                     updateStatus("\n--- Resumo: $movedFoldersCount pastas e $movedFilesCount arquivos movidos.")
                 }
             } catch (e: Exception) {
@@ -373,8 +356,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
     private fun cleanFiles() {
-        val uri = workDirectoryUri ?: return // Alterado para workDirectoryUri
+        val uri = workDirectoryUri ?: return
         lifecycleScope.launch {
             _isProcessing.value = true
             updateStatus("\n--- Iniciando Limpeza de Arquivos ---")
@@ -417,7 +401,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun removeEmptyFolders() {
-        val uri = workDirectoryUri ?: return // Alterado para workDirectoryUri
+        val uri = workDirectoryUri ?: return
         lifecycleScope.launch {
             _isProcessing.value = true
             updateStatus("\n--- Iniciando Remoção de Pastas Vazias ---")
@@ -453,7 +437,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun organizeByDate() {
-        val uri = workDirectoryUri ?: return // Alterado para workDirectoryUri
+        val uri = workDirectoryUri ?: return
         lifecycleScope.launch {
             _isProcessing.value = true
             updateStatus("\n--- Iniciando Organização por Data ---")
