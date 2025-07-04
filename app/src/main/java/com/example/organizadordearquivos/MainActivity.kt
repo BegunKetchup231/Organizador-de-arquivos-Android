@@ -105,7 +105,26 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
+    private fun organizeFilesInCategory() {
+        val uri = workDirectoryUri ?: return
+        lifecycleScope.launch {
+            _isProcessing.value = true
+            try {
+                // Chama a lógica do nosso organizador
+                val (movedFolders, movedFiles) = fileOrganizer.organizeByCategory(
+                    uri = uri,
+                    onStatusUpdate = { message -> updateStatus(message) },
+                    onProgressUpdate = { progress -> updateOperationProgress(progress) }
+                )
+                // Atualiza o status final com o resultado
+                updateStatus("\n--- Resumo: $movedFolders pastas e $movedFiles arquivos movidos.")
+            } catch (e: Exception) {
+                updateStatus("ERRO: ${e.message}")
+            } finally {
+                _isProcessing.value = false
+            }
+        }
+    }
     private fun setupClickListeners() {
         btnSelectDownloads.setOnClickListener { selectFolder() }
         btnOrganizeCategory.setOnClickListener {
@@ -263,88 +282,6 @@ class MainActivity : AppCompatActivity() {
             } catch (copyError: Exception) {
                 updateStatus("ERRO CRÍTICO ao copiar '${fileToMove.name}': ${copyError.message}")
                 null
-            }
-        }
-    }
-
-    private fun organizeFilesInCategory() {
-        val uri = workDirectoryUri ?: return
-        lifecycleScope.launch {
-            _isProcessing.value = true
-            updateStatus("\n--- Iniciando Organização por Categoria ---")
-            try {
-                withContext(Dispatchers.IO) {
-                    val root = DocumentFile.fromTreeUri(applicationContext, uri) ?: throw IOException("Pasta não acessível.")
-                    val items = root.listFiles().toList()
-                    val foldersToIgnore = setOf("Arquivos", "Pastas_Organizadas", "Organizado_Por_Data")
-                    val filesToMove = items.filter { it.isFile && !it.name.orEmpty().startsWith('.') }
-                    val foldersToMove = items.filter { it.isDirectory && it.name !in foldersToIgnore }
-                    val totalItems = filesToMove.size + foldersToMove.size
-
-                    if (totalItems == 0) {
-                        updateStatus("Nenhum item para organizar.")
-                        return@withContext
-                    }
-
-                    var movedFilesCount = 0
-                    var movedFoldersCount = 0
-                    var itemsProcessed = 0
-
-                    if (foldersToMove.isNotEmpty()) {
-                        val organizedFoldersBase = findOrCreateDirectory(root, "Pastas_Organizadas")!!
-                        val existingFolderNames = organizedFoldersBase.listFiles().mapNotNull { it.name }.toMutableSet()
-                        foldersToMove.forEach { folder ->
-                            var finalFolderName = folder.name!!
-                            if (existingFolderNames.contains(finalFolderName)) {
-                                var suffix = 1
-                                do { finalFolderName = "${folder.name}_${suffix++}" } while (existingFolderNames.contains(finalFolderName))
-                            }
-                            if (moveFile(folder, organizedFoldersBase, finalFolderName) != null) {
-                                updateStatus("Pasta movida: '$finalFolderName'")
-                                movedFoldersCount++
-                                existingFolderNames.add(finalFolderName)
-                            } else {
-                                updateStatus("Falha ao mover pasta: '${folder.name}'")
-                            }
-                            itemsProcessed++
-                            updateOperationProgress((itemsProcessed * 100) / totalItems)
-                        }
-                    }
-
-                    if (filesToMove.isNotEmpty()){
-                        val mainArchiveFolder = findOrCreateDirectory(root, "Arquivos")!!
-                        filesToMove.forEach { file ->
-                            val extension = file.getExtension()
-                            val categoryName = FileConfig.FILE_CATEGORIES.getOrDefault(extension, "Diversos")
-                            val categoryFolder = findOrCreateDirectory(mainArchiveFolder, categoryName)!!
-
-                            val extensionWithoutDot = extension.removePrefix(".")
-                            val finalSubFolderName = "${categoryName}.${extensionWithoutDot.uppercase(Locale.ROOT)}"
-                            val finalDestFolder = findOrCreateDirectory(categoryFolder, finalSubFolderName)!!
-
-                            var finalFileName = file.name!!
-                            if (finalDestFolder.findFile(finalFileName) != null) {
-                                val baseName = finalFileName.substringBeforeLast('.')
-                                val ext = finalFileName.substringAfterLast('.')
-                                var suffix = 1
-                                do { finalFileName = "${baseName}_${suffix++}.$ext" } while (finalDestFolder.findFile(finalFileName) != null)
-                            }
-
-                            if (moveFile(file, finalDestFolder, finalFileName) != null) {
-                                movedFilesCount++
-                            } else {
-                                updateStatus("Falha ao mover arquivo: '${file.name}'")
-                            }
-                            itemsProcessed++
-                            updateOperationProgress((itemsProcessed * 100) / totalItems)
-                        }
-                    }
-                    updateStatus("\n--- Resumo: $movedFoldersCount pastas e $movedFilesCount arquivos movidos.")
-                }
-            } catch (e: Exception) {
-                updateStatus("ERRO: ${e.message}")
-            } finally {
-                _isProcessing.value = false
             }
         }
     }
