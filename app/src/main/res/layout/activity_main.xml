@@ -42,19 +42,17 @@
 
         <GridLayout
             android:layout_width="match_parent"
-            android:layout_height="100dp"
-            android:layout_marginTop="20dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
             android:columnCount="2"
             android:rowCount="2">
 
             <Button
                 android:id="@+id/btnOrganizeCategory"
                 android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_rowWeight="1"
+                android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
-                android:layout_marginEnd="4dp"
-                android:layout_marginBottom="-1dp"
+                android:layout_margin="4dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
                 android:text="Organizar por Categoria"
@@ -62,8 +60,7 @@
                 android:textAllCaps="false"
                 android:textAppearance="@style/TextAppearance.AppCompat.Body1"
                 android:textColor="#696459"
-                android:textSize="8.5sp"
-                android:typeface="normal"
+                android:textSize="12sp"
                 app:backgroundTint="#E9C46A"
                 app:icon="@drawable/categoria"
                 tools:ignore="TouchTargetSizeCheck" />
@@ -72,18 +69,16 @@
             <Button
                 android:id="@+id/btnOrganizeByDate"
                 android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_rowWeight="1"
+                android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
-                android:layout_marginStart="4dp"
-                android:layout_marginBottom="-1dp"
+                android:layout_margin="4dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
                 android:text="Organizar por Data"
                 android:textAllCaps="false"
                 android:textAppearance="@style/TextAppearance.AppCompat.Body1"
                 android:textColor="#696459"
-                android:textSize="8.5sp"
+                android:textSize="12sp"
                 app:backgroundTint="#E9C46A"
                 app:icon="@drawable/data"
                 tools:ignore="TouchTargetSizeCheck" />
@@ -91,17 +86,15 @@
             <Button
                 android:id="@+id/btnCleanFiles"
                 android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_rowWeight="1"
+                android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
-                android:layout_marginTop="-1dp"
-                android:layout_marginEnd="4dp"
+                android:layout_margin="4dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
-                android:text="Arquivos Temporários"
+                android:text="Limpar Arquivos Temp"
                 android:textAppearance="@style/TextAppearance.AppCompat.Body1"
                 android:textColor="#696459"
-                android:textSize="8.5sp"
+                android:textSize="12sp"
                 app:backgroundTint="#EDE7F6"
                 app:icon="@drawable/arquivos_temporarios"
                 tools:ignore="TouchTargetSizeCheck" />
@@ -109,48 +102,61 @@
             <Button
                 android:id="@+id/btnRemoveEmptyFolders"
                 android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_rowWeight="1"
+                android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
-                android:layout_marginStart="4dp"
-                android:layout_marginTop="-1dp"
+                android:layout_margin="4dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
-                android:text="Pastas Vazias"
+                android:text="Limpar Pastas Vazias"
                 android:textAlignment="center"
                 android:textAppearance="@style/TextAppearance.AppCompat.Body1"
                 android:textColor="#696459"
-                android:textSize="8.5sp"
+                android:textSize="12sp"
                 app:backgroundTint="#EDE7F6"
                 app:icon="@drawable/pasta_vazia"
                 tools:ignore="TouchTargetSizeCheck" />
         </GridLayout>
 
-        <LinearLayout
+        <com.google.android.material.card.MaterialCardView
             android:id="@+id/progress_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
             android:layout_marginTop="8dp"
-            android:visibility="visible"> <TextView
-            android:id="@+id/progressStatusText"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:fontFamily="@font/aldrich"
-            android:text="Progresso - (0%)"
-            android:textAlignment="center"
-            android:textColor="#F8FCFF"
-            android:textStyle="bold"/>
+            android:visibility="visible"
+            app:cardBackgroundColor="#E0E0E0"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#A0A0A0"
+            app:strokeWidth="1dp">
 
-            <ProgressBar
-                android:id="@+id/progressBar"
-                style="?android:attr/progressBarStyleHorizontal"
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="20dp"
-                android:progressDrawable="@drawable/custom_progressbar"
-                tools:progress="0" />
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
 
-        </LinearLayout>
+                <TextView
+                    android:id="@+id/progressStatusText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/aldrich"
+                    android:text="Progresso - (0%)"
+                    android:textAlignment="center"
+                    android:textColor="#1F1F1F"
+                    android:textStyle="bold" />
+
+                <ProgressBar
+                    android:id="@+id/progressBar"
+                    style="?android:attr/progressBarStyleHorizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="12dp"
+                    android:layout_marginTop="8dp"
+                    android:progressDrawable="@drawable/custom_progressbar"
+                    tools:progress="0" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
