@@ -5,8 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.provider.DocumentsContract
+import android.provider.Settings
 import android.view.View
 import android.widget.Button
 import android.widget.ProgressBar
@@ -36,7 +39,7 @@ class MainActivity : AppCompatActivity() {
     // --- Views da UI ---
     private lateinit var tvStatus: TextView
     private lateinit var progressBar: ProgressBar
-    private lateinit var progressStatusText: TextView // TextView para "Progresso - (X%)"
+    private lateinit var progressStatusText: TextView
     private lateinit var btnSelectDownloads: Button
     private lateinit var btnOrganizeCategory: Button
     private lateinit var btnCleanFiles: Button
@@ -50,27 +53,25 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_NAME = "DownloadOrganizerPrefs"
     private val PREF_DOWNLOADS_URI = "downloads_uri"
 
-    // --- ActivityResultLauncher para o Storage Access Framework (SAF) ---
+    // --- ActivityResultLaunchers ---
     private lateinit var openDocumentTreeLauncher: ActivityResultLauncher<Uri?>
+    // NOVO: Launcher para o resultado da tela de permissão
+    private lateinit var manageStoragePermissionLauncher: ActivityResultLauncher<Intent>
 
-    // Mapeamento de categorias e extensões
+    // Mapeamento de categorias e extensões (permanece igual)
     private val FILE_CATEGORIES = mapOf(
         ".jpg" to "Fotos", ".jpeg" to "Fotos", ".png" to "Fotos", ".gif" to "Fotos",
         ".bmp" to "Fotos", ".webp" to "Fotos", ".tiff" to "Fotos", ".tif" to "Fotos",
         ".heic" to "Fotos",
-
         ".mp4" to "Videos", ".mkv" to "Videos", ".avi" to "Videos", ".mov" to "Videos",
         ".wmv" to "Videos", ".flv" to "Videos", ".webm" to "Videos", ".3gp" to "Videos",
-
         ".pdf" to "Documentos", ".doc" to "Documentos", ".docx" to "Documentos",
         ".xls" to "Documentos", ".xlsx" to "Documentos", ".ppt" to "Documentos",
         ".pptx" to "Documentos", ".txt" to "Documentos", ".rtf" to "Documentos",
         ".odt" to "Documentos", ".ods" to "Documentos", ".odp" to "Documentos",
         ".csv" to "Documentos", ".md" to "Documentos",
-
         ".mp3" to "Audio", ".wav" to "Audio", ".flac" to "Audio", ".aac" to "Audio",
         ".ogg" to "Audio", ".wma" to "Audio", ".m4a" to "Audio",
-
         ".zip" to "Arquivos_Comuns", ".rar" to "Arquivos_Comuns", ".7z" to "Arquivos_Comuns",
         ".exe" to "Arquivos_Comuns", ".apk" to "Arquivos_Comuns", ".iso" to "Arquivos_Comuns",
         ".tar" to "Arquivos_Comuns", ".gz" to "Arquivos_Comuns", ".tgz" to "Arquivos_Comuns",
@@ -80,7 +81,6 @@ class MainActivity : AppCompatActivity() {
 
     private val TEMP_EXTENSIONS = listOf(".tmp", ".bak", ".~tmp", ".~bak", ".temp", ".~lock")
 
-    // --- Gerenciamento de Estado da UI ---
     private val _isProcessing = MutableStateFlow(false)
     private val isProcessing = _isProcessing.asStateFlow()
 
@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         initializeViews()
-        setupOpenDocumentTreeLauncher()
+        setupLaunchers() // NOVO: Agrupando inicialização dos launchers
         loadDownloadsUri()
         updateButtonStates()
         setupClickListeners()
@@ -102,7 +102,7 @@ class MainActivity : AppCompatActivity() {
     private fun initializeViews() {
         tvStatus = findViewById(R.id.tvStatus)
         progressBar = findViewById(R.id.progressBar)
-        progressStatusText = findViewById(R.id.progressStatusText) // Inicializa o novo TextView
+        progressStatusText = findViewById(R.id.progressStatusText)
         btnSelectDownloads = findViewById(R.id.btnSelectDownloads)
         btnOrganizeCategory = findViewById(R.id.btnOrganizeCategory)
         btnCleanFiles = findViewById(R.id.btnCleanFiles)
@@ -110,7 +110,9 @@ class MainActivity : AppCompatActivity() {
         btnOrganizeByDate = findViewById(R.id.btnOrganizeByDate)
     }
 
-    private fun setupOpenDocumentTreeLauncher() {
+    // NOVO: Função para agrupar a inicialização dos launchers
+    private fun setupLaunchers() {
+        // Launcher para selecionar uma árvore de diretórios (SAF)
         openDocumentTreeLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             uri?.let {
                 contentResolver.takePersistableUriPermission(
@@ -125,10 +127,27 @@ class MainActivity : AppCompatActivity() {
                 updateStatus("Seleção de pasta cancelada.")
             }
         }
+
+        // NOVO: Launcher para tratar o retorno da tela de permissão de acesso total
+        manageStoragePermissionLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            // Verifica se a permissão foi concedida após o usuário voltar da tela de Configurações
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (Environment.isExternalStorageManager()) {
+                    updateStatus("Permissão de acesso a todos os arquivos concedida!")
+                    tryToLoadDownloadsFolder() // Tenta carregar a pasta Downloads automaticamente
+                } else {
+                    updateStatus("A permissão de acesso a todos os arquivos não foi concedida.")
+                    showPermissionDeniedDialog()
+                }
+            }
+        }
     }
 
     private fun setupClickListeners() {
-        btnSelectDownloads.setOnClickListener { selectDownloadsFolder() }
+        // NOVO: O botão principal agora chama a verificação de permissão
+        btnSelectDownloads.setOnClickListener { checkAndRequestPermissions() }
+
+        // O resto permanece igual
         btnOrganizeCategory.setOnClickListener {
             showConfirmationDialog("Organizar por Categoria", "Isso moverá arquivos e pastas. Deseja continuar?", ::organizeFilesInCategory)
         }
@@ -143,7 +162,95 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ATUALIZAÇÃO: Observa o estado para mostrar/esconder a UI de progresso
+    // O resto do seu código não foi alterado...
+    // ...
+    // A única alteração foi a adição das funções de permissão abaixo.
+
+    // --- Funções de UI (Diálogo, Status, Progresso) ---
+
+    private fun showConfirmationDialog(title: String, message: String, onConfirm: () -> Unit) {
+        AlertDialog.Builder(this).setTitle(title).setMessage(message)
+            .setPositiveButton("Confirmar") { dialog, _ ->
+                onConfirm()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancelar") { dialog, _ ->
+                updateStatus("Operação cancelada.")
+                dialog.dismiss()
+            }.show()
+    }
+
+    // NOVO: Lógica completa para verificar e pedir a permissão de acesso total
+    private fun checkAndRequestPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // Permissão existe a partir do Android 11
+            if (Environment.isExternalStorageManager()) {
+                // Permissão já está concedida, carrega a pasta Downloads
+                updateStatus("Permissão já concedida. Carregando pasta Downloads...")
+                tryToLoadDownloadsFolder()
+            } else {
+                // Permissão não concedida, abre a tela de configurações para o usuário conceder
+                try {
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                    intent.data = Uri.fromParts("package", packageName, null)
+                    manageStoragePermissionLauncher.launch(intent)
+                } catch (e: Exception) {
+                    updateStatus("Não foi possível abrir a tela de permissão. Selecione a pasta manualmente.")
+                    selectDownloadsFolderWithSAF() // Fallback para o seletor manual
+                }
+            }
+        } else {
+            // Para Android 10 e inferior, usa o método antigo de seleção manual
+            selectDownloadsFolderWithSAF()
+        }
+    }
+
+    // NOVO: Tenta carregar a pasta Downloads automaticamente uma vez que a permissão é concedida
+    private fun tryToLoadDownloadsFolder() {
+        try {
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            val documentFile = DocumentFile.fromFile(downloadsDir)
+            if (documentFile.canRead()) {
+                downloadsTreeUri = documentFile.uri
+                // Persiste a permissão para acesso futuro, embora com MANAGE_EXTERNAL_STORAGE não seja estritamente necessário
+                contentResolver.takePersistableUriPermission(
+                    downloadsTreeUri!!,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                saveDownloadsUri(downloadsTreeUri)
+                updateStatus("Pasta Downloads carregada automaticamente!")
+                updateButtonStates()
+            } else {
+                updateStatus("Não foi possível acessar a pasta Downloads. Selecione manualmente.")
+                selectDownloadsFolderWithSAF()
+            }
+        } catch (e: Exception) {
+            updateStatus("Erro ao acessar a pasta Downloads: ${e.message}")
+            selectDownloadsFolderWithSAF()
+        }
+    }
+
+    // NOVO: Diálogo para informar o usuário caso ele negue a permissão
+    private fun showPermissionDeniedDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Permissão Necessária")
+            .setMessage("Para carregar a pasta Downloads automaticamente, o app precisa da permissão de 'Acesso a todos os arquivos'. Você ainda pode selecionar a pasta manualmente.")
+            .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
+    // NOVO: Função antiga renomeada para ser o método de fallback (seleção manual)
+    private fun selectDownloadsFolderWithSAF() {
+        updateStatus("Por favor, selecione sua pasta")
+        openDocumentTreeLauncher.launch(null)
+    }
+
+    // Todas as suas funções originais de status, progresso, auxiliares e de organização permanecem aqui, intactas...
+    // ...
+    // [SEU CÓDIGO ORIGINAL E INALTERADO VAI AQUI]
+    // ...
+
+    // --- Gerenciamento da URI de Downloads e Estado da UI ---
+
     private fun observeProcessingState() {
         lifecycleScope.launch {
             isProcessing.collectLatest { processing ->
@@ -160,8 +267,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-    // --- Gerenciamento da URI de Downloads e Estado da UI ---
 
     private fun saveDownloadsUri(uri: Uri?) {
         val prefs: SharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -204,40 +309,18 @@ class MainActivity : AppCompatActivity() {
         btnRemoveEmptyFolders.isEnabled = isFolderSelected && !processing
     }
 
-    // --- Funções de UI (Diálogo, Status, Progresso) ---
-
-    private fun showConfirmationDialog(title: String, message: String, onConfirm: () -> Unit) {
-        AlertDialog.Builder(this).setTitle(title).setMessage(message)
-            .setPositiveButton("Confirmar") { dialog, _ ->
-                onConfirm()
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancelar") { dialog, _ ->
-                updateStatus("Operação cancelada.")
-                dialog.dismiss()
-            }.show()
-    }
-
-    private fun selectDownloadsFolder() {
-        updateStatus("Por favor, selecione sua pasta")
-        openDocumentTreeLauncher.launch(null)
-    }
-
     private fun updateStatus(message: String) {
         runOnUiThread {
             tvStatus.append("\n$message")
         }
     }
 
-    // ATUALIZAÇÃO: Função única para atualizar a UI de progresso
     private fun updateOperationProgress(percentage: Int) {
         runOnUiThread {
             progressBar.progress = percentage
             progressStatusText.text = "Progresso - ($percentage%)"
         }
     }
-
-    // --- Funções Auxiliares de Arquivo ---
 
     private fun DocumentFile.getExtension(): String {
         return this.name?.substringAfterLast('.', "")?.lowercase(Locale.ROOT) ?: ""
@@ -255,7 +338,6 @@ class MainActivity : AppCompatActivity() {
         return String.format(Locale.getDefault(), "%.1f %s", size, units[i])
     }
 
-    // A função moveFile permanece a mesma...
     private fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String): DocumentFile? {
         try {
             val fileWithFinalName = if (fileToMove.name != finalFileName) {
@@ -293,8 +375,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-    // --- Funções de Organização (Lógica principal do app) ---
 
     private fun organizeFilesInCategory() {
         val uri = downloadsTreeUri ?: return
@@ -430,7 +510,6 @@ class MainActivity : AppCompatActivity() {
                         updateStatus("Nenhuma subpasta encontrada para verificar.")
                         return@withContext
                     }
-                    // ATUALIZADO: Adicionado progresso a esta função
                     allFolders.asReversed().forEachIndexed { index, folder ->
                         if (folder.listFiles().isEmpty() && folder.uri != rootDir.uri) {
                             if (folder.delete()) removedCount++ else updateStatus("Falha ao remover: ${folder.name}")
@@ -492,7 +571,7 @@ class MainActivity : AppCompatActivity() {
                         } else {
                             updateStatus("Falha ao mover: '${file.name}'")
                         }
-                        updateOperationProgress(((index + 1) * 100) / filesToOrganize.size) // ATUALIZADO
+                        updateOperationProgress(((index + 1) * 100) / filesToOrganize.size)
                     }
                     updateStatus("\n--- Resumo: $movedCount de ${filesToOrganize.size} arquivos movidos.")
                 }
