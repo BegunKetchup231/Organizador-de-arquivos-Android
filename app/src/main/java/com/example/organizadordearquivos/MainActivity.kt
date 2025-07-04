@@ -38,6 +38,7 @@ import com.google.android.gms.ads.MobileAds
 class MainActivity : AppCompatActivity() {
 
     // --- Views da UI ---
+    private lateinit var fileOrganizer: FileOrganizer
     private lateinit var tvStatus: TextView
     private lateinit var progressBar: ProgressBar
     private lateinit var progressStatusText: TextView
@@ -69,6 +70,7 @@ class MainActivity : AppCompatActivity() {
         mAdView.loadAd(adRequest)
 
         initializeViews()
+        fileOrganizer = FileOrganizer(applicationContext)
         setupOpenDocumentTreeLauncher()
         loadLastUsedUri()
         updateButtonStates()
