@@ -2,11 +2,20 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#323C47"
     android:orientation="vertical"
     android:padding="16dp"
     tools:context=".MainActivity">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/topAppBar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="#00FFFFFF"
+        app:logo="@drawable/techjanitorlogo"
+        app:titleTextColor="#7EA1C4" />
 
     <ImageView
         android:id="@+id/imageView2"
@@ -17,9 +26,12 @@
         android:id="@+id/btnSelectDownloads"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:fontFamily="@font/geo"
+        android:fontFamily="@font/jetbrains_mono_regular"
         android:text="Comece por aqui"
-        android:textSize="34sp" />
+        android:textColor="#80C3ED"
+        android:textSize="16sp"
+        app:backgroundTint="#37474F"
+        app:icon="@drawable/pasta" />
 
     <GridLayout
         android:layout_width="match_parent"
@@ -37,9 +49,18 @@
             android:layout_marginEnd="4dp"
             android:layout_marginBottom="4dp"
             android:enabled="false"
-            android:fontFamily="@font/geo"
+            android:fontFamily="@font/jetbrains_mono_regular"
             android:text="Organizar por Categoria"
+            android:textAlignment="center"
+            android:textAllCaps="false"
+            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+            android:textColor="#696459"
+            android:textSize="8.5sp"
+            android:typeface="normal"
+            app:backgroundTint="#EDE7F6"
+            app:icon="@drawable/categoria"
             tools:ignore="TouchTargetSizeCheck" />
+
 
         <Button
             android:id="@+id/btnOrganizeByDate"
@@ -50,8 +71,14 @@
             android:layout_marginStart="4dp"
             android:layout_marginBottom="4dp"
             android:enabled="false"
-            android:fontFamily="@font/geo"
+            android:fontFamily="@font/jetbrains_mono_regular"
             android:text="Organizar por Data"
+            android:textAllCaps="false"
+            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+            android:textColor="#696459"
+            android:textSize="8.5sp"
+            app:backgroundTint="#E9C46A"
+            app:icon="@drawable/data"
             tools:ignore="TouchTargetSizeCheck" />
 
         <Button
@@ -63,8 +90,13 @@
             android:layout_marginTop="4dp"
             android:layout_marginEnd="4dp"
             android:enabled="false"
-            android:fontFamily="@font/geo"
+            android:fontFamily="@font/jetbrains_mono_regular"
             android:text="Arquivos Temporários"
+            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+            android:textColor="#696459"
+            android:textSize="8.5sp"
+            app:backgroundTint="#E9C46A"
+            app:icon="@drawable/arquivos_temporarios"
             tools:ignore="TouchTargetSizeCheck" />
 
         <Button
@@ -76,12 +108,15 @@
             android:layout_marginStart="4dp"
             android:layout_marginTop="4dp"
             android:enabled="false"
-            android:fontFamily="@font/geo"
+            android:fontFamily="@font/jetbrains_mono_regular"
             android:text="Pastas Vazias"
             android:textAlignment="center"
+            android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+            android:textColor="#696459"
+            android:textSize="8.5sp"
+            app:backgroundTint="#EDE7F6"
+            app:icon="@drawable/pasta_vazia"
             tools:ignore="TouchTargetSizeCheck" />
-
-
     </GridLayout>
 
     <TextView
@@ -91,30 +126,33 @@
         android:fontFamily="@font/aldrich"
         android:text="Progresso - (0%)"
         android:textAlignment="center"
-        android:textStyle="italic" />
+        android:textColor="#F8FCFF"
+        android:textStyle="bold" />
 
     <ProgressBar
         android:id="@+id/progressBar"
         android:layout_width="match_parent"
-        android:layout_height="20dp"  android:progressDrawable="@drawable/custom_progressbar"
+        android:layout_height="20dp"
+        android:progressDrawable="@drawable/custom_progressbar"
         tools:progress="50" />
 
 
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="497dp"
+        android:layout_height="0dp"
         android:layout_marginTop="8dp"
         android:layout_weight="1"
-        android:background="#F1F1F1">
+        android:background="#F5EFE6"
+        android:padding="8dp">
 
         <TextView
             android:id="@+id/tvStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="8dp"
+            android:fontFamily="@font/jetbrains_mono_regular"
             android:text="Bem-vindo! Selecione sua pasta para começar. Não selecione pastas do sistema "
             android:textAppearance="@style/TextAppearance.AppCompat.Small"
-            android:textColor="#333333" />
+            android:textColor="#696459" />
     </ScrollView>
 
 </LinearLayout>
