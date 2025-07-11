@@ -3,22 +3,24 @@ package com.example.organizadordearquivos
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
-import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
 
-class FileOrganizer(private val context: Context) {
+// Data class para um resultado de retorno claro
+data class CategoryOrganizationResult(val movedFolders: Int, val movedFiles: Int)
 
-    // A função principal agora é pública e "suspensa" (suspend)
-    // Ela recebe lambdas para atualizar a UI e retorna o resultado
-    suspend fun organizeByCategory(
+class CategoryOrganizer(private val context: Context) {
+
+    // A única função pública da nossa classe especialista
+    suspend fun organize(
         uri: Uri,
         onStatusUpdate: (String) -> Unit,
         onProgressUpdate: (Int) -> Unit
-    ): Pair<Int, Int> = withContext(Dispatchers.IO) {
+    ): CategoryOrganizationResult = withContext(Dispatchers.IO) {
+
         onStatusUpdate("\n--- Iniciando Organização por Categoria ---")
 
         val root = DocumentFile.fromTreeUri(context, uri) ?: throw IOException("Pasta não acessível.")
@@ -30,7 +32,7 @@ class FileOrganizer(private val context: Context) {
 
         if (totalItems == 0) {
             onStatusUpdate("Nenhum item para organizar.")
-            return@withContext 0 to 0 // Retorna 0 pastas e 0 arquivos movidos
+            return@withContext CategoryOrganizationResult(0, 0)
         }
 
         var movedFilesCount = 0
@@ -64,22 +66,19 @@ class FileOrganizer(private val context: Context) {
             val mainArchiveFolder = findOrCreateDirectory(root, "Arquivos")!!
             filesToMove.forEach { file ->
                 val extension = file.getExtension()
+                // Usando a constante do seu arquivo FileConfig
                 val categoryName = FileConfig.FILE_CATEGORIES.getOrDefault(extension, "Diversos")
                 val categoryFolder = findOrCreateDirectory(mainArchiveFolder, categoryName)!!
 
-                val extensionWithoutDot = extension.removePrefix(".")
-                val finalSubFolderName = "${categoryName}.${extensionWithoutDot.uppercase(Locale.ROOT)}"
-                val finalDestFolder = findOrCreateDirectory(categoryFolder, finalSubFolderName)!!
-
                 var finalFileName = file.name!!
-                if (finalDestFolder.findFile(finalFileName) != null) {
+                if (categoryFolder.findFile(finalFileName) != null) {
                     val baseName = finalFileName.substringBeforeLast('.')
                     val ext = finalFileName.substringAfterLast('.')
                     var suffix = 1
-                    do { finalFileName = "${baseName}_${suffix++}.$ext" } while (finalDestFolder.findFile(finalFileName) != null)
+                    do { finalFileName = "${baseName}_${suffix++}.$ext" } while (categoryFolder.findFile(finalFileName) != null)
                 }
 
-                if (moveFile(file, finalDestFolder, finalFileName, onStatusUpdate) != null) {
+                if (moveFile(file, categoryFolder, finalFileName, onStatusUpdate) != null) {
                     movedFilesCount++
                 } else {
                     onStatusUpdate("Falha ao mover arquivo: '${file.name}'")
@@ -88,41 +87,41 @@ class FileOrganizer(private val context: Context) {
                 onProgressUpdate((itemsProcessed * 100) / totalItems)
             }
         }
-
-        return@withContext movedFoldersCount to movedFilesCount
+        CategoryOrganizationResult(movedFoldersCount, movedFilesCount)
     }
 
-    // Os métodos auxiliares foram movidos para cá e agora são privados
-    private fun DocumentFile.getExtension(): String {
-        val fileName = this.name ?: return ""
-        val dotIndex = fileName.lastIndexOf('.')
-        return if (dotIndex > 0) {
-            fileName.substring(dotIndex).lowercase(Locale.ROOT)
-        } else {
-            ""
-        }
-    }
+    // --- Funções auxiliares privadas (só este especialista precisa delas) ---
 
     private fun findOrCreateDirectory(parent: DocumentFile, name: String): DocumentFile? {
         return parent.findFile(name)?.takeIf { it.isDirectory } ?: parent.createDirectory(name)
     }
 
+    private fun DocumentFile.getExtension(): String {
+        val fileName = this.name ?: return ""
+        val dotIndex = fileName.lastIndexOf('.')
+        return if (dotIndex > 0) fileName.substring(dotIndex).lowercase(Locale.ROOT) else ""
+    }
+
     private fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String, onStatusUpdate: (String) -> Unit): DocumentFile? {
         try {
-            val movedUri = DocumentsContract.moveDocument(context.contentResolver, fileToMove.uri, fileToMove.parentFile!!.uri, destinationDir.uri)
-            // Após mover, o nome do arquivo pode ser diferente se houver conflito.
-            // Para manter a consistência, tentamos renomear para o nome final desejado.
-            val movedFile = movedUri?.let { DocumentFile.fromSingleUri(context, it) }
-            if (movedFile != null && movedFile.name != finalFileName) {
-                if (!movedFile.renameTo(finalFileName)) {
-                    onStatusUpdate("Aviso: Falha ao renomear '${movedFile.name}' para '$finalFileName' após mover.")
-                }
-            }
-            return movedFile?.parentFile?.findFile(finalFileName)
+            val fileWithFinalName = if (fileToMove.name != finalFileName) {
+                if (fileToMove.renameTo(finalFileName)) {
+                    fileToMove.parentFile?.findFile(finalFileName) ?: throw IOException("Falha ao encontrar arquivo após renomear.")
+                } else { throw IOException("Falha ao renomear arquivo de origem.") }
+            } else { fileToMove }
+            val movedUri = DocumentsContract.moveDocument(context.contentResolver, fileWithFinalName.uri, fileWithFinalName.parentFile!!.uri, destinationDir.uri)
+            return movedUri?.let { DocumentFile.fromSingleUri(context, it) }
         } catch (e: Exception) {
             onStatusUpdate("Aviso: Usando método de cópia para '${fileToMove.name}' -> '$finalFileName'.")
-            // A lógica de cópia e exclusão (fallback) pode ser adicionada aqui se necessário
-            return null
+            return try {
+                val newFile = destinationDir.createFile(fileToMove.type ?: "application/octet-stream", finalFileName)
+                if (newFile != null) {
+                    context.contentResolver.openInputStream(fileToMove.uri)?.use { input ->
+                        context.contentResolver.openOutputStream(newFile.uri)?.use { output -> input.copyTo(output) }
+                    }
+                }
+                if (fileToMove.delete()) newFile else { newFile?.delete(); null }
+            } catch (copyError: Exception) { null }
         }
     }
 }

@@ -170,7 +170,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/jetbrains_mono_regular"
-                android:text="Bem-vindo! Selecione sua pasta para começar. Não selecione pastas do sistema "
+                android:text="Bem-vindo! Selecione uma pasta para começar. Não selecione pastas do sistema "
                 android:textAppearance="@style/TextAppearance.AppCompat.Small"
                 android:textColor="#696459" />
         </ScrollView>
