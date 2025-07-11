@@ -44,6 +44,9 @@ dependencies {
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("androidx.constraintlayout:constraintlayout:2.2.1")
 
+    // Dependencia para a tela de configurações
+    implementation("androidx.preference:preference-ktx:1.2.1")
+
     // Dependências específicas para o app (DocumentFile e Coroutines)
     implementation("androidx.documentfile:documentfile:1.1.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.1")
@@ -52,6 +55,7 @@ dependencies {
     implementation(libs.androidx.gridlayout)
 
     implementation("com.google.android.gms:play-services-ads:24.4.0")
+    implementation(libs.androidx.preference)
 
     // Dependências de Teste (mantidas como libs. pois costumam funcionar bem)
     testImplementation(libs.junit)

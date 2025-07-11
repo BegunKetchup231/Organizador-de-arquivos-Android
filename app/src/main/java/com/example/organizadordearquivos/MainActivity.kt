@@ -6,7 +6,8 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
-import android.view.View
+import android.view.Menu // IMPORT ADICIONADO
+import android.view.MenuItem // IMPORT ADICIONADO
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -55,6 +56,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         initializeViews()
+        setSupportActionBar(findViewById(R.id.topAppBar)) // LINHA ADICIONADA
         setupOpenDocumentTreeLauncher()
         loadLastUsedUri()
         setupClickListeners()
@@ -65,6 +67,26 @@ class MainActivity : AppCompatActivity() {
         val adRequest = AdRequest.Builder().build()
         mAdView.loadAd(adRequest)
     }
+
+    // --- LÓGICA DO MENU DE CONFIGURAÇÕES (NOVO) ---
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_settings -> {
+                // Abre a SettingsActivity que criamos
+                val intent = Intent(this, SettingsActivity::class.java)
+                startActivity(intent)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+    // --- FIM DA LÓGICA DO MENU ---
+
 
     private fun initializeViews() {
         tvStatus = findViewById(R.id.tvStatus)
@@ -132,26 +154,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun organizeByDate() {
         val uri = workDirectoryUri ?: return
-
-        // Cria uma instância do nosso novo especialista
         val dateOrganizer = DateOrganizer(applicationContext)
-
         lifecycleScope.launch {
             _isProcessing.value = true
             try {
-                // Chama a lógica do especialista
-                val movedCount = dateOrganizer.organize(
-                    uri = uri,
-                    onStatusUpdate = ::updateStatus,
-                    onProgressUpdate = ::updateOperationProgress
-                )
+                val movedCount = dateOrganizer.organize(uri, ::updateStatus, ::updateOperationProgress)
                 updateStatus("\n--- Resumo: $movedCount arquivos movidos por data.")
-
-            } catch (e: Exception) {
-                updateStatus("ERRO: ${e.message}")
-            } finally {
-                _isProcessing.value = false
-            }
+            } catch (e: Exception) { updateStatus("ERRO: ${e.message}") }
+            finally { _isProcessing.value = false }
         }
     }
 
@@ -162,7 +172,7 @@ class MainActivity : AppCompatActivity() {
             _isProcessing.value = true
             try {
                 val result = cleaner.clean(uri, ::updateStatus, ::updateOperationProgress)
-                val freedSpace = convertBytes(result.spaceFreed) // Formatação fica na UI
+                val freedSpace = convertBytes(result.spaceFreed)
                 updateStatus("\n--- Resumo: ${result.filesRemoved} arquivos removidos ($freedSpace liberados).")
             } catch (e: Exception) { updateStatus("ERRO: ${e.message}") }
             finally { _isProcessing.value = false }
@@ -182,6 +192,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // --- Funções de UI, Persistência e Auxiliares da UI ---
+
     private fun updateStatus(message: String) {
         runOnUiThread { tvStatus.append("\n$message") }
     }
@@ -193,7 +205,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Função auxiliar que só a UI precisa
     private fun convertBytes(num: Long): String {
         if (num < 1024) return "$num bytes"
         val units = listOf("bytes", "KB", "MB", "GB", "TB")
