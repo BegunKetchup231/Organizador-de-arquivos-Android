@@ -49,6 +49,7 @@ object FileConfig {
         ".ogg" to "Audio", ".wma" to "Audio", ".m4a" to "Audio", ".opus" to "Audio",
         ".aiff" to "Audio", ".alac" to "Audio", ".amr" to "Audio", ".mid" to "Audio",
         ".midi" to "Audio",
+
         ".zip" to "Arquivos_Comuns", ".rar" to "Arquivos_Comuns", ".7z" to "Arquivos_Comuns",
         ".exe" to "Arquivos_Comuns", ".apk" to "Arquivos_Comuns", ".iso" to "Arquivos_Comuns",
         ".tar" to "Arquivos_Comuns", ".gz" to "Arquivos_Comuns", ".tgz" to "Arquivos_Comuns",

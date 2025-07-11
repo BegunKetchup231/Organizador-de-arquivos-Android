@@ -20,54 +20,63 @@ class DateOrganizer(private val context: Context) {
     ): Int = withContext(Dispatchers.IO) {
 
         onStatusUpdate("\n--- Iniciando Organização por Data ---")
-
         val root = DocumentFile.fromTreeUri(context, uri) ?: throw IOException("Pasta não acessível.")
         val filesToOrganize = root.listFiles().filter { it.isFile && !it.name.orEmpty().startsWith('.') }
 
         if (filesToOrganize.isEmpty()) {
-            onStatusUpdate("Nenhum arquivo para organizar.")
+            onStatusUpdate("Nenhum arquivo para organizar por data.")
             return@withContext 0
         }
 
-        val dateOutputBase = findOrCreateDirectory(root, "Organizado_Por_Data")!!
+        // MUDANÇA 1: Nome da pasta base alterado para usar espaços.
+        val dateOutputBase = findOrCreateDirectory(root, "Organizado Por Data")!!
+
+        // Formatos de data para os novos nomes de pasta
         val yearFormat = SimpleDateFormat("yyyy", Locale.getDefault())
-        val monthFormat = SimpleDateFormat("MM - MMMM", Locale.getDefault())
+        val monthYearFormat = SimpleDateFormat("MMMM 'de' yyyy", Locale.getDefault())
+
         val monthFolderCache = mutableMapOf<String, DocumentFile>()
-        val existingFilesInDestCache = mutableMapOf<String, MutableSet<String>>()
         var movedCount = 0
 
         filesToOrganize.forEachIndexed { index, file ->
             val modDate = Date(file.lastModified())
+
+            // MUDANÇA 2: Cria os nomes de pasta personalizados.
             val yearString = yearFormat.format(modDate)
-            val monthString = monthFormat.format(modDate)
-            val monthPathKey = "$yearString/$monthString"
+            val yearFolderName = "Arquivos de $yearString"
 
-            val monthFolder = monthFolderCache.getOrPut(monthPathKey) {
-                val yearFolder = findOrCreateDirectory(dateOutputBase, yearString)!!
-                findOrCreateDirectory(yearFolder, monthString)!!
-            }
+            val monthFolderNameRaw = monthYearFormat.format(modDate)
+            // Capitaliza a primeira letra do mês (ex: "julho" -> "Julho")
+            val monthFolderName = monthFolderNameRaw.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 
-            val destinationExistingFiles = existingFilesInDestCache.getOrPut(monthPathKey) {
-                monthFolder.listFiles().mapNotNull { it.name }.toMutableSet()
+            val pathCacheKey = "$yearFolderName/$monthFolderName"
+
+            // O cache garante que não vamos procurar as mesmas pastas repetidamente
+            val monthFolder = monthFolderCache.getOrPut(pathCacheKey) {
+                val yearFolder = findOrCreateDirectory(dateOutputBase, yearFolderName)!!
+                findOrCreateDirectory(yearFolder, monthFolderName)!!
             }
 
             var finalFileName = file.name!!
-            if (destinationExistingFiles.contains(finalFileName)) {
+            // Lida com conflitos de nome
+            if (monthFolder.findFile(finalFileName) != null) {
                 val baseName = finalFileName.substringBeforeLast('.')
-                val ext = file.getExtension()
+                val ext = finalFileName.substringAfterLast('.')
                 var suffix = 1
-                do { finalFileName = "${baseName}_${suffix++}$ext" } while (destinationExistingFiles.contains(finalFileName))
+                do {
+                    finalFileName = "${baseName}_${suffix++}.$ext"
+                } while (monthFolder.findFile(finalFileName) != null)
             }
 
             val movedFile = moveFile(file, monthFolder, finalFileName, onStatusUpdate)
             if (movedFile != null) {
                 movedCount++
-                destinationExistingFiles.add(movedFile.name!!)
             } else {
                 onStatusUpdate("Falha ao mover: '${file.name}'")
             }
             onProgressUpdate(((index + 1) * 100) / filesToOrganize.size)
         }
+        // Retorna o total de arquivos movidos
         movedCount
     }
 
@@ -75,10 +84,6 @@ class DateOrganizer(private val context: Context) {
 
     private fun findOrCreateDirectory(parent: DocumentFile, name: String): DocumentFile? {
         return parent.findFile(name)?.takeIf { it.isDirectory } ?: parent.createDirectory(name)
-    }
-
-    private fun DocumentFile.getExtension(): String {
-        return this.name?.substringAfterLast('.', "")?.let { ".$it" }?.lowercase(Locale.ROOT) ?: ""
     }
 
     private fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String, onStatusUpdate: (String) -> Unit): DocumentFile? {

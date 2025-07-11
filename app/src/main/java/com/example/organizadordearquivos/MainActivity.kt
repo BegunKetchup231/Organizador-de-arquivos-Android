@@ -132,14 +132,26 @@ class MainActivity : AppCompatActivity() {
 
     private fun organizeByDate() {
         val uri = workDirectoryUri ?: return
-        val organizer = DateOrganizer(applicationContext)
+
+        // Cria uma instância do nosso novo especialista
+        val dateOrganizer = DateOrganizer(applicationContext)
+
         lifecycleScope.launch {
             _isProcessing.value = true
             try {
-                val movedCount = organizer.organize(uri, ::updateStatus, ::updateOperationProgress)
+                // Chama a lógica do especialista
+                val movedCount = dateOrganizer.organize(
+                    uri = uri,
+                    onStatusUpdate = ::updateStatus,
+                    onProgressUpdate = ::updateOperationProgress
+                )
                 updateStatus("\n--- Resumo: $movedCount arquivos movidos por data.")
-            } catch (e: Exception) { updateStatus("ERRO: ${e.message}") }
-            finally { _isProcessing.value = false }
+
+            } catch (e: Exception) {
+                updateStatus("ERRO: ${e.message}")
+            } finally {
+                _isProcessing.value = false
+            }
         }
     }
 
@@ -169,7 +181,7 @@ class MainActivity : AppCompatActivity() {
             finally { _isProcessing.value = false }
         }
     }
-    
+
     private fun updateStatus(message: String) {
         runOnUiThread { tvStatus.append("\n$message") }
     }
