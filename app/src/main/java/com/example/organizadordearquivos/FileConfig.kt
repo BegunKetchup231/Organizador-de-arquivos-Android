@@ -45,10 +45,10 @@ object FileConfig {
         ".json" to "Documentos", ".log" to "Documentos", ".pages" to "Documentos",
         ".numbers" to "Documentos", ".key" to "Documentos", ".wps" to "Documentos",
 
-        ".mp3" to "Audio", ".wav" to "Audio", ".flac" to "Audio", ".aac" to "Audio",
-        ".ogg" to "Audio", ".wma" to "Audio", ".m4a" to "Audio", ".opus" to "Audio",
-        ".aiff" to "Audio", ".alac" to "Audio", ".amr" to "Audio", ".mid" to "Audio",
-        ".midi" to "Audio",
+        ".mp3" to "Audios", ".wav" to "Audios", ".flac" to "Audios", ".aac" to "Audios",
+        ".ogg" to "Audios", ".wma" to "Audios", ".m4a" to "Audios", ".opus" to "Audios",
+        ".aiff" to "Audios", ".alac" to "Audios", ".amr" to "Audios", ".mid" to "Audios",
+        ".midi" to "Audios",
 
         ".zip" to "Arquivos_Comuns", ".rar" to "Arquivos_Comuns", ".7z" to "Arquivos_Comuns",
         ".exe" to "Arquivos_Comuns", ".apk" to "Arquivos_Comuns", ".iso" to "Arquivos_Comuns",

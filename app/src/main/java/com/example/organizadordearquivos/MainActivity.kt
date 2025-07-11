@@ -124,7 +124,7 @@ class MainActivity : AppCompatActivity() {
             _isProcessing.value = true
             try {
                 val result = organizer.organize(uri, ::updateStatus, ::updateOperationProgress)
-                updateStatus("\n--- Resumo: ${result.movedFolders} pastas e ${result.movedFiles} arquivos movidos.")
+                updateStatus("\n--- Resumo: ${result.movedFiles} arquivos movidos para suas categorias.")
             } catch (e: Exception) { updateStatus("ERRO: ${e.message}") }
             finally { _isProcessing.value = false }
         }

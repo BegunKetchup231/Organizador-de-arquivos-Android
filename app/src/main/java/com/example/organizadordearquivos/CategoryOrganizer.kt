@@ -9,12 +9,10 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
 
-// Data class para um resultado de retorno claro
-data class CategoryOrganizationResult(val movedFolders: Int, val movedFiles: Int)
+data class CategoryOrganizationResult(val movedFiles: Int) // Simplificado para retornar apenas arquivos
 
 class CategoryOrganizer(private val context: Context) {
 
-    // A única função pública da nossa classe especialista
     suspend fun organize(
         uri: Uri,
         onStatusUpdate: (String) -> Unit,
@@ -24,73 +22,53 @@ class CategoryOrganizer(private val context: Context) {
         onStatusUpdate("\n--- Iniciando Organização por Categoria ---")
 
         val root = DocumentFile.fromTreeUri(context, uri) ?: throw IOException("Pasta não acessível.")
-        val items = root.listFiles().toList()
-        val foldersToIgnore = setOf("Arquivos", "Pastas_Organizadas", "Organizado_Por_Data")
-        val filesToMove = items.filter { it.isFile && !it.name.orEmpty().startsWith('.') }
-        val foldersToMove = items.filter { it.isDirectory && it.name !in foldersToIgnore }
-        val totalItems = filesToMove.size + foldersToMove.size
 
-        if (totalItems == 0) {
-            onStatusUpdate("Nenhum item para organizar.")
-            return@withContext CategoryOrganizationResult(0, 0)
+        // A lógica agora foca apenas em arquivos, como no diagrama
+        val filesToMove = root.listFiles().filter { it.isFile && !it.name.orEmpty().startsWith('.') }
+
+        if (filesToMove.isEmpty()) {
+            onStatusUpdate("Nenhum arquivo encontrado para organizar.")
+            return@withContext CategoryOrganizationResult(0)
         }
+
+        // MUDANÇA 1: O nome da pasta raiz agora é "Organizados por Categoria"
+        val mainOutputFolder = findOrCreateDirectory(root, "Organizados por Categoria")!!
 
         var movedFilesCount = 0
-        var movedFoldersCount = 0
-        var itemsProcessed = 0
 
-        // Lógica para mover pastas
-        if (foldersToMove.isNotEmpty()) {
-            val organizedFoldersBase = findOrCreateDirectory(root, "Pastas_Organizadas")!!
-            val existingFolderNames = organizedFoldersBase.listFiles().mapNotNull { it.name }.toMutableSet()
-            foldersToMove.forEach { folder ->
-                var finalFolderName = folder.name!!
-                if (existingFolderNames.contains(finalFolderName)) {
-                    var suffix = 1
-                    do { finalFolderName = "${folder.name}_${suffix++}" } while (existingFolderNames.contains(finalFolderName))
-                }
-                if (moveFile(folder, organizedFoldersBase, finalFolderName, onStatusUpdate) != null) {
-                    onStatusUpdate("Pasta movida: '$finalFolderName'")
-                    movedFoldersCount++
-                    existingFolderNames.add(finalFolderName)
-                } else {
-                    onStatusUpdate("Falha ao mover pasta: '${folder.name}'")
-                }
-                itemsProcessed++
-                onProgressUpdate((itemsProcessed * 100) / totalItems)
+        filesToMove.forEachIndexed { index, file ->
+            val extension = file.getExtension()
+            val categoryName = FileConfig.FILE_CATEGORIES.getOrDefault(extension, "Diversos")
+
+            // Nível 1: Pasta da Categoria (ex: Videos)
+            val categoryFolder = findOrCreateDirectory(mainOutputFolder, categoryName)!!
+
+            // Nível 2: Subpasta da Extensão (ex: Arquivos.MP4)
+            val extensionName = extension.removePrefix(".").uppercase(Locale.ROOT)
+            val finalSubFolderName = "Arquivos.$extensionName"
+            val finalDestFolder = findOrCreateDirectory(categoryFolder, finalSubFolderName)!!
+
+            var finalFileName = file.name!!
+            if (finalDestFolder.findFile(finalFileName) != null) {
+                val baseName = finalFileName.substringBeforeLast('.')
+                val ext = finalFileName.substringAfterLast('.')
+                var suffix = 1
+                do {
+                    finalFileName = "${baseName}_${suffix++}.$ext"
+                } while (finalDestFolder.findFile(finalFileName) != null)
             }
-        }
 
-        // Lógica para mover arquivos
-        if (filesToMove.isNotEmpty()){
-            val mainArchiveFolder = findOrCreateDirectory(root, "Arquivos")!!
-            filesToMove.forEach { file ->
-                val extension = file.getExtension()
-                // Usando a constante do seu arquivo FileConfig
-                val categoryName = FileConfig.FILE_CATEGORIES.getOrDefault(extension, "Diversos")
-                val categoryFolder = findOrCreateDirectory(mainArchiveFolder, categoryName)!!
-
-                var finalFileName = file.name!!
-                if (categoryFolder.findFile(finalFileName) != null) {
-                    val baseName = finalFileName.substringBeforeLast('.')
-                    val ext = finalFileName.substringAfterLast('.')
-                    var suffix = 1
-                    do { finalFileName = "${baseName}_${suffix++}.$ext" } while (categoryFolder.findFile(finalFileName) != null)
-                }
-
-                if (moveFile(file, categoryFolder, finalFileName, onStatusUpdate) != null) {
-                    movedFilesCount++
-                } else {
-                    onStatusUpdate("Falha ao mover arquivo: '${file.name}'")
-                }
-                itemsProcessed++
-                onProgressUpdate((itemsProcessed * 100) / totalItems)
+            if (moveFile(file, finalDestFolder, finalFileName, onStatusUpdate) != null) {
+                movedFilesCount++
+            } else {
+                onStatusUpdate("Falha ao mover arquivo: '${file.name}'")
             }
+            onProgressUpdate(((index + 1) * 100) / filesToMove.size)
         }
-        CategoryOrganizationResult(movedFoldersCount, movedFilesCount)
+        CategoryOrganizationResult(movedFilesCount)
     }
 
-    // --- Funções auxiliares privadas (só este especialista precisa delas) ---
+    // --- Funções auxiliares privadas (não precisam de alteração) ---
 
     private fun findOrCreateDirectory(parent: DocumentFile, name: String): DocumentFile? {
         return parent.findFile(name)?.takeIf { it.isDirectory } ?: parent.createDirectory(name)
@@ -99,7 +77,11 @@ class CategoryOrganizer(private val context: Context) {
     private fun DocumentFile.getExtension(): String {
         val fileName = this.name ?: return ""
         val dotIndex = fileName.lastIndexOf('.')
-        return if (dotIndex > 0) fileName.substring(dotIndex).lowercase(Locale.ROOT) else ""
+        return if (dotIndex >= 0) {
+            fileName.substring(dotIndex).lowercase(Locale.ROOT)
+        } else {
+            ""
+        }
     }
 
     private fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String, onStatusUpdate: (String) -> Unit): DocumentFile? {
