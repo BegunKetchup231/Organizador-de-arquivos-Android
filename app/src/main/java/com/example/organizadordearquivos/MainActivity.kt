@@ -169,9 +169,7 @@ class MainActivity : AppCompatActivity() {
             finally { _isProcessing.value = false }
         }
     }
-
-    // --- Funções de UI, Persistência e Auxiliares da UI ---
-
+    
     private fun updateStatus(message: String) {
         runOnUiThread { tvStatus.append("\n$message") }
     }

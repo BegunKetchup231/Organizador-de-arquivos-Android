@@ -33,7 +33,7 @@ class TempFileCleaner(private val context: Context) {
             current.listFiles().forEach {
                 if (it.isDirectory) {
                     stack.add(it)
-                } else if (it.isFile && (it.length() == 0L || it.getExtension() in TEMP_EXTENSIONS)) {
+                } else if (it.isFile && (it.length() == 0L || it.getExtension() in FileConfig.TEMP_EXTENSIONS)) { // <-- MUDANÇA AQUI
                     filesToDelete.add(it)
                 }
             }
@@ -74,8 +74,5 @@ class TempFileCleaner(private val context: Context) {
         }
     }
 
-    // Constante privada, só esta classe precisa dela
-    companion object {
-        private val TEMP_EXTENSIONS = listOf(".tmp", ".bak", ".~tmp", ".~bak", ".temp", ".~lock")
-    }
+    // O companion object com a lista foi REMOVIDO מכאן
 }
