@@ -13,6 +13,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:animateLayoutChanges="true"
         android:orientation="vertical"
         android:padding="16dp">
 
@@ -21,113 +22,172 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="#00FFFFFF"
-            app:logo="@drawable/techjanitorlogo"
-            app:titleTextColor="#7EA1C4" />
+            app:titleTextColor="#7EA1C4">
 
-        <ImageView
-            android:id="@+id/imageView2"
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:fontFamily="@font/aldrich"
+                android:text="TECH JANITOR"
+                android:textColor="@android:color/white"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+        </com.google.android.material.appbar.MaterialToolbar>
+
+        <Space
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="0dp"
+            android:layout_weight="0.5" />
 
-        <Button
-            android:id="@+id/btnSelectDownloads"
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_select_folder"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:clickable="true"
+            android:focusable="true"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp"
+            app:strokeWidth="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="20dp">
+
+                <ImageView
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/pasta"
+                    app:tint="?attr/colorPrimary" />
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_weight="1"
+                    android:text="Selecionar Pasta para Analisar"
+                    android:textAppearance="?attr/textAppearanceTitleMedium"
+                    android:textColor="?attr/colorOnSurface" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:id="@+id/tv_helper_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
             android:fontFamily="@font/jetbrains_mono_regular"
-            android:text="Comece por aqui"
-            android:textColor="#80C3ED"
-            android:textSize="16sp"
-            app:backgroundTint="#37474F"
-            app:icon="@drawable/pasta" />
+            android:text="Toque acima para começar."
+            android:textAlignment="center"
+            android:textColor="#90A4AE"
+            android:textSize="14sp"
+            android:visibility="visible" />
+
+        <TextView
+            android:id="@+id/tv_selected_path"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:fontFamily="@font/jetbrains_mono_regular"
+            android:textAlignment="center"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="Analisando: /storage/emulated/0/Downloads" />
 
         <GridLayout
+            android:id="@+id/actions_grid_layout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="24dp"
             android:columnCount="2"
-            android:rowCount="2">
+            android:rowCount="2"
+            android:visibility="gone"
+            tools:visibility="visible">
 
             <Button
                 android:id="@+id/btnOrganizeCategory"
+                style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
+                android:layout_gravity="fill_vertical"
                 android:layout_margin="4dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
-                android:text="Organizar por Categoria"
-                android:textAlignment="center"
+                android:paddingVertical="12dp"
+                android:text="Organizar Categoria"
                 android:textAllCaps="false"
-                android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-                android:textColor="#696459"
                 android:textSize="12sp"
-                app:backgroundTint="#E9C46A"
-                app:icon="@drawable/categoria"
-                tools:ignore="TouchTargetSizeCheck" />
-
+                app:icon="@drawable/categoria" />
 
             <Button
                 android:id="@+id/btnOrganizeByDate"
+                style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
+                android:layout_gravity="fill_vertical"
                 android:layout_margin="4dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
-                android:text="Organizar por Data"
+                android:paddingVertical="12dp"
+                android:text="Organizar Data"
                 android:textAllCaps="false"
-                android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-                android:textColor="#696459"
                 android:textSize="12sp"
-                app:backgroundTint="#E9C46A"
-                app:icon="@drawable/data"
-                tools:ignore="TouchTargetSizeCheck" />
+                app:icon="@drawable/data" />
 
             <Button
                 android:id="@+id/btnCleanFiles"
+                style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
+                android:layout_gravity="fill_vertical"
                 android:layout_margin="4dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
-                android:text="Limpar Arquivos Temp"
-                android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-                android:textColor="#696459"
+                android:paddingVertical="12dp"
+                android:text="Limpar Arquivos"
+                android:textAllCaps="false"
                 android:textSize="12sp"
-                app:backgroundTint="#EDE7F6"
-                app:icon="@drawable/arquivos_temporarios"
-                tools:ignore="TouchTargetSizeCheck" />
+                app:icon="@drawable/arquivos_temporarios" />
 
             <Button
                 android:id="@+id/btnRemoveEmptyFolders"
+                style="?attr/materialButtonOutlinedStyle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_columnWeight="1"
+                android:layout_gravity="fill_vertical"
                 android:layout_margin="4dp"
                 android:enabled="false"
                 android:fontFamily="@font/jetbrains_mono_regular"
+                android:paddingVertical="12dp"
                 android:text="Limpar Pastas Vazias"
-                android:textAlignment="center"
-                android:textAppearance="@style/TextAppearance.AppCompat.Body1"
-                android:textColor="#696459"
+                android:textAllCaps="false"
                 android:textSize="12sp"
-                app:backgroundTint="#EDE7F6"
-                app:icon="@drawable/pasta_vazia"
-                tools:ignore="TouchTargetSizeCheck" />
+                app:icon="@drawable/pasta_vazia" />
+
         </GridLayout>
 
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/progress_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:visibility="visible"
+            android:layout_marginTop="16dp"
+            android:visibility="gone"
             app:cardBackgroundColor="#E0E0E0"
             app:cardCornerRadius="12dp"
             app:cardElevation="0dp"
             app:strokeColor="#A0A0A0"
-            app:strokeWidth="1dp">
+            app:strokeWidth="1dp"
+            tools:visibility="visible">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -152,28 +212,36 @@
                     android:layout_height="12dp"
                     android:layout_marginTop="8dp"
                     android:progressDrawable="@drawable/custom_progressbar"
-                    tools:progress="0" />
-
+                    tools:progress="50" />
             </LinearLayout>
-
         </com.google.android.material.card.MaterialCardView>
+
         <ScrollView
+            android:id="@+id/status_scroll_view"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_marginTop="8dp"
             android:layout_weight="1"
             android:background="#F5EFE6"
-            android:padding="8dp">
+            android:padding="8dp"
+            android:visibility="gone"
+            tools:visibility="visible">
 
             <TextView
                 android:id="@+id/tvStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/jetbrains_mono_regular"
-                android:text="Bem-vindo! Selecione uma pasta para começar. Não selecione pastas do sistema "
                 android:textAppearance="@style/TextAppearance.AppCompat.Small"
-                android:textColor="#696459" />
+                android:textColor="#696459"
+                tools:text="Log de status aparece aqui..." />
         </ScrollView>
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1.0" />
+
     </LinearLayout>
 
     <com.google.android.gms.ads.AdView
@@ -182,4 +250,5 @@
         android:layout_height="wrap_content"
         ads:adSize="BANNER"
         ads:adUnitId="ca-app-pub-3940256099942544/6300978111" />
+
 </LinearLayout>

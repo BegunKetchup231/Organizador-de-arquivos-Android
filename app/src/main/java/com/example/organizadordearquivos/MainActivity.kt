@@ -6,10 +6,13 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
-import android.view.Menu // IMPORT ADICIONADO
-import android.view.MenuItem // IMPORT ADICIONADO
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
 import android.widget.Button
+import android.widget.GridLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,30 +24,37 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.MobileAds
+import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.log2
 import kotlin.math.pow
 
 class MainActivity : AppCompatActivity() {
 
-    // --- Views da UI ---
-    private lateinit var tvStatus: TextView
-    private lateinit var progressBar: ProgressBar
-    private lateinit var progressStatusText: TextView
-    private lateinit var btnSelectDownloads: Button
+    // --- Views da UI (ATUALIZADAS PARA O NOVO LAYOUT) ---
+    private lateinit var cardSelectFolder: MaterialCardView
+    private lateinit var tvHelperText: TextView
+    private lateinit var tvSelectedPath: TextView
+    private lateinit var actionsGridLayout: GridLayout
+    private lateinit var progressContainer: MaterialCardView
+    private lateinit var scrollViewStatus: ScrollView
+
+    // Views que ainda são necessárias
     private lateinit var btnOrganizeCategory: Button
     private lateinit var btnCleanFiles: Button
     private lateinit var btnRemoveEmptyFolders: Button
     private lateinit var btnOrganizeByDate: Button
+    private lateinit var tvStatus: TextView
+    private lateinit var progressBar: ProgressBar
+    private lateinit var progressStatusText: TextView
     private lateinit var mAdView: AdView
-    private var workDirectoryUri: Uri? = null
 
     // --- Variáveis de Estado e Configurações ---
+    private var workDirectoryUri: Uri? = null
     private val _isProcessing = MutableStateFlow(false)
     private val isProcessing = _isProcessing.asStateFlow()
     private val PREFS_NAME = "OrganizerPrefs"
@@ -56,19 +66,18 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         initializeViews()
-        setSupportActionBar(findViewById(R.id.topAppBar)) // LINHA ADICIONADA
+        setSupportActionBar(findViewById(R.id.topAppBar))
+        supportActionBar?.setDisplayShowTitleEnabled(false)
         setupOpenDocumentTreeLauncher()
         loadLastUsedUri()
         setupClickListeners()
         observeProcessingState()
 
-        // Carregar Anúncio
         MobileAds.initialize(this) {}
         val adRequest = AdRequest.Builder().build()
         mAdView.loadAd(adRequest)
     }
 
-    // --- LÓGICA DO MENU DE CONFIGURAÇÕES (NOVO) ---
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
         return true
@@ -77,51 +86,98 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_settings -> {
-                // Abre a SettingsActivity que criamos
-                val intent = Intent(this, SettingsActivity::class.java)
-                startActivity(intent)
+                startActivity(Intent(this, SettingsActivity::class.java))
                 true
             }
             else -> super.onOptionsItemSelected(item)
         }
     }
-    // --- FIM DA LÓGICA DO MENU ---
-
 
     private fun initializeViews() {
+        cardSelectFolder = findViewById(R.id.card_select_folder)
+        tvHelperText = findViewById(R.id.tv_helper_text)
+        tvSelectedPath = findViewById(R.id.tv_selected_path)
+        actionsGridLayout = findViewById(R.id.actions_grid_layout)
+        progressContainer = findViewById(R.id.progress_container)
+        scrollViewStatus = findViewById(R.id.status_scroll_view)
         tvStatus = findViewById(R.id.tvStatus)
-        progressBar = findViewById(R.id.progressBar)
-        progressStatusText = findViewById(R.id.progressStatusText)
-        btnSelectDownloads = findViewById(R.id.btnSelectDownloads)
         btnOrganizeCategory = findViewById(R.id.btnOrganizeCategory)
+        btnOrganizeByDate = findViewById(R.id.btnOrganizeByDate)
         btnCleanFiles = findViewById(R.id.btnCleanFiles)
         btnRemoveEmptyFolders = findViewById(R.id.btnRemoveEmptyFolders)
-        btnOrganizeByDate = findViewById(R.id.btnOrganizeByDate)
+        progressBar = findViewById(R.id.progressBar)
+        progressStatusText = findViewById(R.id.progressStatusText)
         mAdView = findViewById(R.id.adView)
     }
 
     private fun setupClickListeners() {
-        btnSelectDownloads.setOnClickListener { selectFolder() }
+        cardSelectFolder.setOnClickListener { selectFolder() }
         btnOrganizeCategory.setOnClickListener {
-            showConfirmationDialog("Organizar por Categoria", "Isso moverá arquivos e pastas. Deseja continuar?", ::organizeByCategory)
+            showConfirmationDialog("Organizar por Categoria", "Isso moverá arquivos. Deseja continuar?", ::organizeByCategory)
         }
         btnOrganizeByDate.setOnClickListener {
-            showConfirmationDialog("Organizar por Data", "Isso moverá arquivos para pastas de Ano/Mês. Deseja continuar?", ::organizeByDate)
+            showConfirmationDialog("Organizar por Data", "Isso moverá arquivos. Deseja continuar?", ::organizeByDate)
         }
         btnCleanFiles.setOnClickListener {
-            showConfirmationDialog("Limpar Arquivos", "Isso excluirá arquivos vazios e temporários. Deseja continuar?", ::cleanFiles)
+            showConfirmationDialog("Limpar Arquivos", "Isso excluirá arquivos temporários. Deseja continuar?", ::cleanFiles)
         }
         btnRemoveEmptyFolders.setOnClickListener {
             showConfirmationDialog("Remover Pastas Vazias", "Isso excluirá pastas vazias. Deseja continuar?", ::removeEmptyFolders)
         }
     }
 
+    private fun setupOpenDocumentTreeLauncher() {
+        openDocumentTreeLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+            uri?.let {
+                contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                this@MainActivity.workDirectoryUri = it
+                this@MainActivity.saveLastUsedUri(it)
+                this@MainActivity.showActiveStateUI(it)
+            } ?: run {
+                updateStatus("Seleção de pasta cancelada.")
+            }
+        }
+    }
+
+    private fun loadLastUsedUri() {
+        val prefs: SharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val uriString = prefs.getString(PREF_LAST_URI, null)
+        if (uriString.isNullOrEmpty()) return
+        try {
+            val uri = uriString.toUri() // Agora esta linha funcionará
+            if (contentResolver.persistedUriPermissions.any { it.uri == uri }) {
+                val documentFile = DocumentFile.fromTreeUri(this, uri)
+                if (documentFile != null && documentFile.exists()) {
+                    this@MainActivity.workDirectoryUri = uri
+                    this@MainActivity.showActiveStateUI(uri)
+                }
+            }
+        } catch (e: Exception) {
+            saveLastUsedUri(null)
+        }
+    }
+
+    private fun showActiveStateUI(uri: Uri) {
+        val documentFile = DocumentFile.fromTreeUri(this, uri)
+        val folderName = documentFile?.name ?: uri.path
+        tvHelperText.visibility = View.GONE
+        tvSelectedPath.text = "Operando em: $folderName"
+        tvSelectedPath.visibility = View.VISIBLE
+        actionsGridLayout.visibility = View.VISIBLE
+        updateButtonStates()
+    }
+
     private fun observeProcessingState() {
         lifecycleScope.launch {
             isProcessing.collectLatest { processing ->
                 updateButtonStates()
+                val visibility = if (processing) View.VISIBLE else View.GONE
+                progressContainer.visibility = visibility
+                scrollViewStatus.visibility = visibility
                 if (!processing) {
                     updateOperationProgress(0)
+                } else {
+                    tvStatus.text = ""
                 }
             }
         }
@@ -130,14 +186,12 @@ class MainActivity : AppCompatActivity() {
     private fun updateButtonStates() {
         val isFolderSelected = workDirectoryUri != null
         val processing = isProcessing.value
-        btnSelectDownloads.isEnabled = !processing
+        cardSelectFolder.isClickable = !processing
         btnOrganizeCategory.isEnabled = isFolderSelected && !processing
         btnOrganizeByDate.isEnabled = isFolderSelected && !processing
         btnCleanFiles.isEnabled = isFolderSelected && !processing
         btnRemoveEmptyFolders.isEnabled = isFolderSelected && !processing
     }
-
-    // --- Chamadas para os Especialistas ---
 
     private fun organizeByCategory() {
         val uri = workDirectoryUri ?: return
@@ -192,10 +246,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // --- Funções de UI, Persistência e Auxiliares da UI ---
-
     private fun updateStatus(message: String) {
-        runOnUiThread { tvStatus.append("\n$message") }
+        runOnUiThread {
+            tvStatus.append("\n$message")
+            scrollViewStatus.post { scrollViewStatus.fullScroll(View.FOCUS_DOWN) }
+        }
     }
 
     private fun updateOperationProgress(percentage: Int) {
@@ -213,41 +268,9 @@ class MainActivity : AppCompatActivity() {
         return String.format(Locale.getDefault(), "%.1f %s", size, units[i])
     }
 
-    private fun setupOpenDocumentTreeLauncher() {
-        openDocumentTreeLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-            uri?.let {
-                contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                workDirectoryUri = it
-                saveLastUsedUri(it)
-                updateStatus("Pasta selecionada: ${it.path}")
-                updateButtonStates()
-            } ?: run {
-                updateStatus("Seleção de pasta cancelada.")
-            }
-        }
-    }
-
     private fun saveLastUsedUri(uri: Uri?) {
         val prefs: SharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit { putString(PREF_LAST_URI, uri?.toString()) }
-    }
-
-    private fun loadLastUsedUri() {
-        val prefs: SharedPreferences = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val uriString = prefs.getString(PREF_LAST_URI, null)
-        if (uriString.isNullOrEmpty()) return
-        try {
-            val uri = uriString.toUri()
-            if (contentResolver.persistedUriPermissions.any { it.uri == uri }) {
-                val documentFile = DocumentFile.fromTreeUri(this, uri)
-                if (documentFile != null && documentFile.exists()) {
-                    workDirectoryUri = uri
-                    updateStatus("Última pasta usada carregada: ${documentFile.name ?: uri.path}")
-                }
-            }
-        } catch (e: Exception) {
-            saveLastUsedUri(null)
-        }
     }
 
     private fun showConfirmationDialog(title: String, message: String, onConfirm: () -> Unit) {
