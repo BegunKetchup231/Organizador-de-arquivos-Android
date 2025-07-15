@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.log2
 import kotlin.math.pow
+import androidx.preference.PreferenceManager
 
 class MainActivity : AppCompatActivity() {
 
@@ -274,15 +275,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showConfirmationDialog(title: String, message: String, onConfirm: () -> Unit) {
-        AlertDialog.Builder(this).setTitle(title).setMessage(message)
-            .setPositiveButton("Confirmar") { dialog, _ ->
-                onConfirm()
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancelar") { dialog, _ ->
-                updateStatus("Operação cancelada.")
-                dialog.dismiss()
-            }.show()
+        // 1. Acessa as configurações padrão do aplicativo
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
+
+        // 2. Lê o valor do nosso interruptor.
+        // A chave "confirmations_enabled" é a mesma que definimos no root_preferences.xml.
+        // O `true` é o valor padrão caso a configuração nunca tenha sido tocada.
+        val showDialogs = sharedPreferences.getBoolean("confirmations_enabled", true)
+
+        if (showDialogs) {
+            // 3a. Se a opção estiver LIGADA, mostra o diálogo de confirmação como antes.
+            AlertDialog.Builder(this).setTitle(title).setMessage(message)
+                .setPositiveButton("Confirmar") { dialog, _ ->
+                    onConfirm()
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancelar") { dialog, _ ->
+                    updateStatus("Operação cancelada.")
+                    dialog.dismiss()
+                }.show()
+        } else {
+            // 3b. Se a opção estiver DESLIGADA, executa a ação diretamente, sem perguntar.
+            onConfirm()
+        }
     }
 
     private fun selectFolder() {
