@@ -9,8 +9,29 @@ import java.io.IOException
 
 class EmptyFolderRemover(private val context: Context) {
 
-    // A função pública que a MainActivity vai chamar.
-    // Retorna o número de pastas removidas.
+    // NOVA FUNÇÃO DE ANÁLISE
+    suspend fun analyze(uri: Uri): Int = withContext(Dispatchers.IO) {
+        val rootDir = DocumentFile.fromTreeUri(context, uri)
+            ?: throw IOException("Pasta não acessível.")
+
+        var emptyFolderCount = 0
+        val stack = ArrayDeque<DocumentFile>().apply { add(rootDir) }
+
+        // A análise apenas percorre e conta, sem deletar
+        while (stack.isNotEmpty()) {
+            val current = stack.removeFirst()
+            // Adiciona as subpastas à pilha para verificação futura
+            current.listFiles().filter { it.isDirectory }.forEach { stack.add(it) }
+            // Conta a pasta atual se ela estiver vazia e não for a pasta raiz
+            if (current.uri != rootDir.uri && current.listFiles().isEmpty()) {
+                emptyFolderCount++
+            }
+        }
+        emptyFolderCount
+    }
+
+
+    // Função de remoção (sem alterações)
     suspend fun remove(
         uri: Uri,
         onStatusUpdate: (String) -> Unit,
@@ -22,7 +43,6 @@ class EmptyFolderRemover(private val context: Context) {
         val rootDir = DocumentFile.fromTreeUri(context, uri)
             ?: throw IOException("Pasta não acessível.")
 
-        // 1. Mapeia todas as pastas primeiro
         val allFolders = mutableListOf<DocumentFile>()
         val stack = ArrayDeque<DocumentFile>().apply { add(rootDir) }
         while (stack.isNotEmpty()) {
@@ -37,9 +57,7 @@ class EmptyFolderRemover(private val context: Context) {
         }
 
         var removedCount = 0
-        // 2. Itera de forma reversa para deletar as mais internas primeiro
         allFolders.asReversed().forEachIndexed { index, folder ->
-            // Garante que não estamos tentando deletar a pasta raiz selecionada
             if (folder.uri != rootDir.uri && folder.listFiles().isEmpty()) {
                 if (folder.delete()) {
                     removedCount++
@@ -49,7 +67,6 @@ class EmptyFolderRemover(private val context: Context) {
             }
             onProgressUpdate(((index + 1) * 100) / allFolders.size)
         }
-        // Retorna o resultado
         removedCount
     }
 }

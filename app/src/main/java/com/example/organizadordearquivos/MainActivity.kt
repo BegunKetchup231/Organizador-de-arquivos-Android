@@ -124,7 +124,7 @@ class MainActivity : AppCompatActivity() {
             cleanFiles()
         }
         btnRemoveEmptyFolders.setOnClickListener {
-            showConfirmationDialog("Remover Pastas Vazias", "Isso excluirá pastas vazias. Deseja continuar?", ::removeEmptyFolders)
+            removeEmptyFolders()
         }
     }
 
@@ -361,13 +361,52 @@ class MainActivity : AppCompatActivity() {
     private fun removeEmptyFolders() {
         val uri = workDirectoryUri ?: return
         val remover = EmptyFolderRemover(applicationContext)
+
+        lifecycleScope.launch {
+            updateStatus("\nAnalisando pastas vazias...")
+            _isProcessing.value = true
+
+            try {
+                // 1. CHAMA A ANÁLISE PRIMEIRO
+                val emptyFolderCount = remover.analyze(uri)
+                _isProcessing.value = false
+
+                // 2. VERIFICA SE ALGO FOI ENCONTRADO
+                if (emptyFolderCount == 0) {
+                    updateStatus("Nenhuma pasta vazia encontrada.")
+                    return@launch
+                }
+
+                // 3. MONTA A MENSAGEM DETALHADA
+                val message = "Foram encontradas $emptyFolderCount pastas vazias.\n\nDeseja excluí-las permanentemente?"
+
+                // 4. MOSTRA O DIÁLOGO DE CONFIRMAÇÃO
+                showConfirmationDialog(
+                    "Confirmar Remoção",
+                    message
+                ) {
+                    // A ação de confirmação é chamar a remoção de verdade
+                    runActualEmptyFolderRemoval(remover, uri)
+                }
+
+            } catch (e: Exception) {
+                _isProcessing.value = false
+                updateStatus("ERRO durante a análise: ${e.message}")
+            }
+        }
+    }
+
+    private fun runActualEmptyFolderRemoval(remover: EmptyFolderRemover, uri: Uri) {
         lifecycleScope.launch {
             _isProcessing.value = true
             try {
                 val removedCount = remover.remove(uri, ::updateStatus, ::updateOperationProgress)
                 updateStatus("\n--- Resumo: $removedCount pastas vazias removidas.")
-            } catch (e: Exception) { updateStatus("ERRO: ${e.message}") }
-            finally { _isProcessing.value = false }
+            } catch (e: Exception) {
+                updateStatus("ERRO na remoção: ${e.message}")
+            } finally {
+                _isProcessing.value = false
+            }
         }
     }
 
