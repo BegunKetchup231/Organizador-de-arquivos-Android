@@ -1,3 +1,4 @@
+// Arquivo: CategoryOrganizer.kt (Esta versão está correta, sem necessidade de mudanças)
 package com.example.organizadordearquivos
 
 import android.content.Context
@@ -9,21 +10,32 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Locale
 
-data class CategoryOrganizationResult(val movedFiles: Int) // Simplificado para retornar apenas arquivos
+data class CategoryOrganizationResult(val movedFiles: Int)
+data class CategoryAnalysisResult(val fileCountsByCategory: Map<String, Int>)
 
 class CategoryOrganizer(private val context: Context) {
+
+    suspend fun analyze(uri: Uri): CategoryAnalysisResult = withContext(Dispatchers.IO) {
+        val root = DocumentFile.fromTreeUri(context, uri) ?: throw IOException("Pasta não acessível.")
+        val filesToAnalyze = root.listFiles().filter { it.isFile && !it.name.orEmpty().startsWith('.') }
+
+        val counts = mutableMapOf<String, Int>()
+        filesToAnalyze.forEach { file ->
+            val extension = file.getExtension()
+            val category = FileConfig.FILE_CATEGORIES.getOrDefault(extension, "Diversos")
+            counts[category] = (counts[category] ?: 0) + 1
+        }
+        CategoryAnalysisResult(counts)
+    }
 
     suspend fun organize(
         uri: Uri,
         onStatusUpdate: (String) -> Unit,
         onProgressUpdate: (Int) -> Unit
     ): CategoryOrganizationResult = withContext(Dispatchers.IO) {
-
         onStatusUpdate("\n--- Iniciando Organização por Categoria ---")
 
         val root = DocumentFile.fromTreeUri(context, uri) ?: throw IOException("Pasta não acessível.")
-
-        // A lógica agora foca apenas em arquivos, como no diagrama
         val filesToMove = root.listFiles().filter { it.isFile && !it.name.orEmpty().startsWith('.') }
 
         if (filesToMove.isEmpty()) {
@@ -31,19 +43,13 @@ class CategoryOrganizer(private val context: Context) {
             return@withContext CategoryOrganizationResult(0)
         }
 
-        // MUDANÇA 1: O nome da pasta raiz agora é "Organizados por Categoria"
         val mainOutputFolder = findOrCreateDirectory(root, "Organizados por Categoria")!!
-
         var movedFilesCount = 0
 
         filesToMove.forEachIndexed { index, file ->
             val extension = file.getExtension()
             val categoryName = FileConfig.FILE_CATEGORIES.getOrDefault(extension, "Diversos")
-
-            // Nível 1: Pasta da Categoria (ex: Videos)
             val categoryFolder = findOrCreateDirectory(mainOutputFolder, categoryName)!!
-
-            // Nível 2: Subpasta da Extensão (ex: Arquivos.MP4)
             val extensionName = extension.removePrefix(".").uppercase(Locale.ROOT)
             val finalSubFolderName = "Arquivos.$extensionName"
             val finalDestFolder = findOrCreateDirectory(categoryFolder, finalSubFolderName)!!
@@ -68,8 +74,6 @@ class CategoryOrganizer(private val context: Context) {
         CategoryOrganizationResult(movedFilesCount)
     }
 
-    // --- Funções auxiliares privadas (não precisam de alteração) ---
-
     private fun findOrCreateDirectory(parent: DocumentFile, name: String): DocumentFile? {
         return parent.findFile(name)?.takeIf { it.isDirectory } ?: parent.createDirectory(name)
     }
@@ -79,9 +83,7 @@ class CategoryOrganizer(private val context: Context) {
         val dotIndex = fileName.lastIndexOf('.')
         return if (dotIndex >= 0) {
             fileName.substring(dotIndex).lowercase(Locale.ROOT)
-        } else {
-            ""
-        }
+        } else { "" }
     }
 
     private fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String, onStatusUpdate: (String) -> Unit): DocumentFile? {

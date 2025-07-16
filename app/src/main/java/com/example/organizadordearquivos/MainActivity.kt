@@ -113,9 +113,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupClickListeners() {
         cardSelectFolder.setOnClickListener { selectFolder() }
+
         btnOrganizeCategory.setOnClickListener {
-            showConfirmationDialog("Organizar por Categoria", "Isso moverá arquivos. Deseja continuar?", ::organizeByCategory)
+            // CORREÇÃO: Chamamos a função que agora contém a lógica de análise e diálogo.
+            organizeByCategory()
         }
+
+        // AVISO: Os outros botões ainda usam a lógica antiga.
+        // Vamos corrigi-los um por um depois.
         btnOrganizeByDate.setOnClickListener {
             showConfirmationDialog("Organizar por Data", "Isso moverá arquivos. Deseja continuar?", ::organizeByDate)
         }
@@ -197,13 +202,56 @@ class MainActivity : AppCompatActivity() {
     private fun organizeByCategory() {
         val uri = workDirectoryUri ?: return
         val organizer = CategoryOrganizer(applicationContext)
+
+        lifecycleScope.launch {
+            updateStatus("\nAnalisando a pasta...")
+            _isProcessing.value = true
+
+            try {
+                // 1. CHAMA A ANÁLISE PRIMEIRO
+                val analysisResult = organizer.analyze(uri)
+                _isProcessing.value = false // Termina o indicador de "analisando"
+
+                // 2. VERIFICA SE ALGO FOI ENCONTRADO
+                if (analysisResult.fileCountsByCategory.isEmpty()) {
+                    updateStatus("Nenhum arquivo para organizar foi encontrado.")
+                    return@launch // Encerra a operação
+                }
+
+                // 3. MONTA A MENSAGEM DETALHADA PARA O DIÁLOGO
+                val messageBuilder = StringBuilder("A organização moverá:\n")
+                analysisResult.fileCountsByCategory.forEach { (category, count) ->
+                    messageBuilder.append("\n- $count arquivos para a categoria '$category'")
+                }
+                messageBuilder.append("\n\nDeseja continuar?")
+
+                // 4. CHAMA O DIÁLOGO DE CONFIRMAÇÃO COM A NOVA MENSAGEM
+                showConfirmationDialog(
+                    "Confirmar Organização",
+                    messageBuilder.toString()
+                ) {
+                    // A ação de confirmação é chamar a organização de verdade
+                    runCategoryOrganization(organizer, uri)
+                }
+
+            } catch (e: Exception) {
+                _isProcessing.value = false
+                updateStatus("ERRO durante a análise: ${e.message}")
+            }
+        }
+    }
+
+    private fun runCategoryOrganization(organizer: CategoryOrganizer, uri: Uri) {
         lifecycleScope.launch {
             _isProcessing.value = true
             try {
                 val result = organizer.organize(uri, ::updateStatus, ::updateOperationProgress)
                 updateStatus("\n--- Resumo: ${result.movedFiles} arquivos movidos para suas categorias.")
-            } catch (e: Exception) { updateStatus("ERRO: ${e.message}") }
-            finally { _isProcessing.value = false }
+            } catch (e: Exception) {
+                updateStatus("ERRO na organização: ${e.message}")
+            } finally {
+                _isProcessing.value = false
+            }
         }
     }
 
