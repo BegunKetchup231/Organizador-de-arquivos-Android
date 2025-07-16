@@ -121,7 +121,7 @@ class MainActivity : AppCompatActivity() {
             organizeByDate()
         }
         btnCleanFiles.setOnClickListener {
-            showConfirmationDialog("Limpar Arquivos", "Isso excluirá arquivos temporários. Deseja continuar?", ::cleanFiles)
+            cleanFiles()
         }
         btnRemoveEmptyFolders.setOnClickListener {
             showConfirmationDialog("Remover Pastas Vazias", "Isso excluirá pastas vazias. Deseja continuar?", ::removeEmptyFolders)
@@ -306,14 +306,55 @@ class MainActivity : AppCompatActivity() {
     private fun cleanFiles() {
         val uri = workDirectoryUri ?: return
         val cleaner = TempFileCleaner(applicationContext)
+
+        lifecycleScope.launch {
+            updateStatus("\nAnalisando arquivos para limpeza...")
+            _isProcessing.value = true
+
+            try {
+                // 1. CHAMA A ANÁLISE PRIMEIRO
+                val analysisResult = cleaner.analyze(uri)
+                _isProcessing.value = false
+
+                // 2. VERIFICA SE ALGO FOI ENCONTRADO
+                if (analysisResult.filesFound == 0) {
+                    updateStatus("Nenhum arquivo temporário ou vazio encontrado.")
+                    return@launch
+                }
+
+                // 3. MONTA A MENSAGEM DETALHADA
+                val filesCount = analysisResult.filesFound
+                val spaceToFree = convertBytes(analysisResult.spaceToFree) // Usamos nossa função auxiliar
+                val message = "Foram encontrados $filesCount arquivos inúteis, totalizando $spaceToFree de espaço que pode ser liberado.\n\nDeseja excluí-los permanentemente?"
+
+                // 4. MOSTRA O DIÁLOGO DE CONFIRMAÇÃO
+                showConfirmationDialog(
+                    "Confirmar Limpeza",
+                    message
+                ) {
+                    // A ação de confirmação é chamar a limpeza de verdade
+                    runActualCleaning(cleaner, uri)
+                }
+
+            } catch (e: Exception) {
+                _isProcessing.value = false
+                updateStatus("ERRO durante a análise: ${e.message}")
+            }
+        }
+    }
+
+    private fun runActualCleaning(cleaner: TempFileCleaner, uri: Uri) {
         lifecycleScope.launch {
             _isProcessing.value = true
             try {
                 val result = cleaner.clean(uri, ::updateStatus, ::updateOperationProgress)
-                val freedSpace = convertBytes(result.spaceFreed)
-                updateStatus("\n--- Resumo: ${result.filesRemoved} arquivos removidos ($freedSpace liberados).")
-            } catch (e: Exception) { updateStatus("ERRO: ${e.message}") }
-            finally { _isProcessing.value = false }
+                val freedSpace = convertBytes(result.spaceToFree)
+                updateStatus("\n--- Resumo: ${result.filesFound} arquivos removidos ($freedSpace liberados).")
+            } catch (e: Exception) {
+                updateStatus("ERRO na limpeza: ${e.message}")
+            } finally {
+                _isProcessing.value = false
+            }
         }
     }
 
