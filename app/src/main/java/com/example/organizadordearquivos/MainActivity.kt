@@ -115,14 +115,10 @@ class MainActivity : AppCompatActivity() {
         cardSelectFolder.setOnClickListener { selectFolder() }
 
         btnOrganizeCategory.setOnClickListener {
-            // CORREÇÃO: Chamamos a função que agora contém a lógica de análise e diálogo.
             organizeByCategory()
         }
-
-        // AVISO: Os outros botões ainda usam a lógica antiga.
-        // Vamos corrigi-los um por um depois.
         btnOrganizeByDate.setOnClickListener {
-            showConfirmationDialog("Organizar por Data", "Isso moverá arquivos. Deseja continuar?", ::organizeByDate)
+            organizeByDate()
         }
         btnCleanFiles.setOnClickListener {
             showConfirmationDialog("Limpar Arquivos", "Isso excluirá arquivos temporários. Deseja continuar?", ::cleanFiles)
@@ -258,13 +254,52 @@ class MainActivity : AppCompatActivity() {
     private fun organizeByDate() {
         val uri = workDirectoryUri ?: return
         val dateOrganizer = DateOrganizer(applicationContext)
+
+        lifecycleScope.launch {
+            updateStatus("\nAnalisando a pasta para organização por data...")
+            _isProcessing.value = true
+
+            try {
+                // 1. CHAMA A ANÁLISE PRIMEIRO
+                val filesToMoveCount = dateOrganizer.analyze(uri)
+                _isProcessing.value = false
+
+                // 2. VERIFICA SE ALGO FOI ENCONTRADO
+                if (filesToMoveCount == 0) {
+                    updateStatus("Nenhum arquivo para organizar por data foi encontrado.")
+                    return@launch
+                }
+
+                // 3. MONTA A MENSAGEM DETALHADA
+                val message = "Encontrados $filesToMoveCount arquivos para organizar por data.\n\nDeseja continuar?"
+
+                // 4. MOSTRA O DIÁLOGO DE CONFIRMAÇÃO
+                showConfirmationDialog(
+                    "Confirmar Organização por Data",
+                    message
+                ) {
+                    // A ação de confirmação é chamar a organização de verdade
+                    runDateOrganization(dateOrganizer, uri)
+                }
+
+            } catch (e: Exception) {
+                _isProcessing.value = false
+                updateStatus("ERRO durante a análise: ${e.message}")
+            }
+        }
+    }
+
+    private fun runDateOrganization(organizer: DateOrganizer, uri: Uri) {
         lifecycleScope.launch {
             _isProcessing.value = true
             try {
-                val movedCount = dateOrganizer.organize(uri, ::updateStatus, ::updateOperationProgress)
+                val movedCount = organizer.organize(uri, ::updateStatus, ::updateOperationProgress)
                 updateStatus("\n--- Resumo: $movedCount arquivos movidos por data.")
-            } catch (e: Exception) { updateStatus("ERRO: ${e.message}") }
-            finally { _isProcessing.value = false }
+            } catch (e: Exception) {
+                updateStatus("ERRO na organização: ${e.message}")
+            } finally {
+                _isProcessing.value = false
+            }
         }
     }
 
