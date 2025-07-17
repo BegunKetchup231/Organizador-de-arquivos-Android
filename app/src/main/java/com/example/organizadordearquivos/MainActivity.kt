@@ -275,12 +275,12 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             updateStatus("\nAnalisando a pasta para organização por data...")
-            _isProcessing.value = true
+            _isProcessing.value = true // Mostra o indicador de "analisando"
 
             try {
                 // 1. CHAMA A ANÁLISE PRIMEIRO
                 val filesToMoveCount = dateOrganizer.analyze(uri)
-                _isProcessing.value = false
+                _isProcessing.value = false // Esconde o indicador de "analisando"
 
                 // 2. VERIFICA SE ALGO FOI ENCONTRADO
                 if (filesToMoveCount == 0) {
@@ -292,12 +292,22 @@ class MainActivity : AppCompatActivity() {
                 val message = "Encontrados $filesToMoveCount arquivos para organizar por data.\n\nDeseja continuar?"
 
                 // 4. MOSTRA O DIÁLOGO DE CONFIRMAÇÃO
-                showConfirmationDialog(
-                    "Confirmar Organização por Data",
-                    message
-                ) {
-                    // A ação de confirmação é chamar a organização de verdade
-                    runDateOrganization(dateOrganizer, uri)
+                showConfirmationDialog("Confirmar Organização por Data", message) {
+
+                    // AÇÃO DE CONFIRMAÇÃO: Agora cria e enfileira o WorkRequest
+                    val inputData = workDataOf(
+                        OrganizationWorker.KEY_OPERATION_TYPE to OrganizationWorker.OP_ORGANIZE_BY_DATE,
+                        OrganizationWorker.KEY_URI to uri.toString()
+                    )
+
+                    val workRequest = OneTimeWorkRequestBuilder<OrganizationWorker>()
+                        .setInputData(inputData)
+                        .build()
+
+                    val workManager = WorkManager.getInstance(applicationContext)
+                    workManager.enqueue(workRequest)
+
+                    observeWork(workRequest.id)
                 }
 
             } catch (e: Exception) {
@@ -306,21 +316,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-    private fun runDateOrganization(organizer: DateOrganizer, uri: Uri) {
-        lifecycleScope.launch {
-            _isProcessing.value = true
-            try {
-                val movedCount = organizer.organize(uri, ::updateStatus, ::updateOperationProgress)
-                updateStatus("\n--- Resumo: $movedCount arquivos movidos por data.")
-            } catch (e: Exception) {
-                updateStatus("ERRO na organização: ${e.message}")
-            } finally {
-                _isProcessing.value = false
-            }
-        }
-    }
-
     private fun cleanFiles() {
         val uri = workDirectoryUri ?: return
         val cleaner = TempFileCleaner(applicationContext)
