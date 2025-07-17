@@ -1,5 +1,7 @@
 package com.example.organizadordearquivos
 
+import androidx.work.*
+import java.util.UUID
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -197,44 +199,60 @@ class MainActivity : AppCompatActivity() {
 
     private fun organizeByCategory() {
         val uri = workDirectoryUri ?: return
-        val organizer = CategoryOrganizer(applicationContext)
 
-        lifecycleScope.launch {
-            updateStatus("\nAnalisando a pasta...")
-            _isProcessing.value = true
+        // 1. Prepara os dados para o Worker
+        val inputData = workDataOf(
+            OrganizationWorker.KEY_OPERATION_TYPE to OrganizationWorker.OP_ORGANIZE_BY_CATEGORY,
+            OrganizationWorker.KEY_URI to uri.toString()
+        )
 
-            try {
-                // 1. CHAMA A ANÁLISE PRIMEIRO
-                val analysisResult = organizer.analyze(uri)
-                _isProcessing.value = false // Termina o indicador de "analisando"
+        // 2. Cria o pedido de trabalho
+        val workRequest = OneTimeWorkRequestBuilder<OrganizationWorker>()
+            .setInputData(inputData)
+            .build()
 
-                // 2. VERIFICA SE ALGO FOI ENCONTRADO
-                if (analysisResult.fileCountsByCategory.isEmpty()) {
-                    updateStatus("Nenhum arquivo para organizar foi encontrado.")
-                    return@launch // Encerra a operação
+        // 3. Envia o pedido para o WorkManager e começa a observar
+        val workManager = WorkManager.getInstance(applicationContext)
+        workManager.enqueue(workRequest)
+
+        // 4. Começa a observar o progresso deste trabalho específico
+        observeWork(workRequest.id)
+    }
+
+    private fun observeWork(workId: UUID) {
+        WorkManager.getInstance(applicationContext)
+            .getWorkInfoByIdLiveData(workId)
+            .observe(this) { workInfo ->
+                if (workInfo != null) {
+                    // Pega os dados de progresso enviados pelo Worker
+                    val progress = workInfo.progress.getInt(OrganizationWorker.KEY_PROGRESS_PERCENT, -1)
+                    val status = workInfo.progress.getString(OrganizationWorker.KEY_PROGRESS_STATUS)
+
+                    if (progress != -1) {
+                        updateOperationProgress(progress)
+                    }
+                    if (status != null) {
+                        updateStatus(status)
+                    }
+
+                    // Verifica o estado do trabalho
+                    when (workInfo.state) {
+                        WorkInfo.State.RUNNING -> {
+                            if (!_isProcessing.value) {
+                                _isProcessing.value = true
+                            }
+                        }
+                        WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
+                            if (_isProcessing.value) {
+                                _isProcessing.value = false
+                            }
+                            // Remove o observador para não receber atualizações antigas no futuro
+                            WorkManager.getInstance(applicationContext).getWorkInfoByIdLiveData(workId).removeObservers(this)
+                        }
+                        else -> {}
+                    }
                 }
-
-                // 3. MONTA A MENSAGEM DETALHADA PARA O DIÁLOGO
-                val messageBuilder = StringBuilder("A organização moverá:\n")
-                analysisResult.fileCountsByCategory.forEach { (category, count) ->
-                    messageBuilder.append("\n- $count arquivos para a categoria '$category'")
-                }
-                messageBuilder.append("\n\nDeseja continuar?")
-
-                // 4. CHAMA O DIÁLOGO DE CONFIRMAÇÃO COM A NOVA MENSAGEM
-                showConfirmationDialog(
-                    "Confirmar Organização",
-                    messageBuilder.toString()
-                ) {
-                    // A ação de confirmação é chamar a organização de verdade
-                    runCategoryOrganization(organizer, uri)
-                }
-
-            } catch (e: Exception) {
-                _isProcessing.value = false
-                updateStatus("ERRO durante a análise: ${e.message}")
             }
-        }
     }
 
     private fun runCategoryOrganization(organizer: CategoryOrganizer, uri: Uri) {
