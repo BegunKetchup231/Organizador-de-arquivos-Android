@@ -13,18 +13,15 @@ import java.util.Locale
 
 class DateOrganizer(private val context: Context) {
 
-    // NOVA FUNÇÃO DE ANÁLISE
     suspend fun analyze(uri: Uri): Int = withContext(Dispatchers.IO) {
         val root = DocumentFile.fromTreeUri(context, uri) ?: throw IOException("Pasta não acessível.")
-        // A análise simplesmente conta quantos arquivos seriam movidos.
         return@withContext root.listFiles().count { it.isFile && !it.name.orEmpty().startsWith('.') }
     }
 
-    // Função de organização (sem alterações)
     suspend fun organize(
         uri: Uri,
-        onStatusUpdate: (String) -> Unit,
-        onProgressUpdate: (Int) -> Unit
+        onStatusUpdate: suspend (String) -> Unit,
+        onProgressUpdate: suspend (Int) -> Unit
     ): Int = withContext(Dispatchers.IO) {
 
         onStatusUpdate("\n--- Iniciando Organização por Data ---")
@@ -76,12 +73,12 @@ class DateOrganizer(private val context: Context) {
         movedCount
     }
 
-    // --- Funções auxiliares privadas (sem alterações) ---
     private fun findOrCreateDirectory(parent: DocumentFile, name: String): DocumentFile? {
         return parent.findFile(name)?.takeIf { it.isDirectory } ?: parent.createDirectory(name)
     }
 
-    private fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String, onStatusUpdate: (String) -> Unit): DocumentFile? {
+    // A MUDANÇA ESTÁ AQUI: onStatusUpdate agora é 'suspend'
+    private suspend fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String, onStatusUpdate: suspend (String) -> Unit): DocumentFile? {
         try {
             val fileWithFinalName = if (fileToMove.name != finalFileName) {
                 if (fileToMove.renameTo(finalFileName)) {

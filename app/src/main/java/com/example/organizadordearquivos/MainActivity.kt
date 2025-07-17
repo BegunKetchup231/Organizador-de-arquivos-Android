@@ -218,35 +218,32 @@ class MainActivity : AppCompatActivity() {
         // 4. Começa a observar o progresso deste trabalho específico
         observeWork(workRequest.id)
     }
-
     private fun observeWork(workId: UUID) {
         WorkManager.getInstance(applicationContext)
             .getWorkInfoByIdLiveData(workId)
             .observe(this) { workInfo ->
                 if (workInfo != null) {
-                    // Pega os dados de progresso enviados pelo Worker
                     val progress = workInfo.progress.getInt(OrganizationWorker.KEY_PROGRESS_PERCENT, -1)
                     val status = workInfo.progress.getString(OrganizationWorker.KEY_PROGRESS_STATUS)
 
-                    if (progress != -1) {
-                        updateOperationProgress(progress)
-                    }
-                    if (status != null) {
-                        updateStatus(status)
-                    }
+                    if (progress != -1) { updateOperationProgress(progress) }
+                    if (status != null) { updateStatus(status) }
 
-                    // Verifica o estado do trabalho
                     when (workInfo.state) {
                         WorkInfo.State.RUNNING -> {
-                            if (!_isProcessing.value) {
-                                _isProcessing.value = true
-                            }
+                            if (!_isProcessing.value) { _isProcessing.value = true }
                         }
-                        WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
-                            if (_isProcessing.value) {
-                                _isProcessing.value = false
+                        WorkInfo.State.SUCCEEDED -> { // QUANDO O TRABALHO TERMINA COM SUCESSO
+                            // Pega a mensagem de resumo final enviada pelo Worker
+                            val summary = workInfo.outputData.getString(OrganizationWorker.KEY_RESULT_SUMMARY)
+                            if (summary != null) {
+                                updateStatus(summary)
                             }
-                            // Remove o observador para não receber atualizações antigas no futuro
+                            if (_isProcessing.value) { _isProcessing.value = false }
+                            WorkManager.getInstance(applicationContext).getWorkInfoByIdLiveData(workId).removeObservers(this)
+                        }
+                        WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
+                            if (_isProcessing.value) { _isProcessing.value = false }
                             WorkManager.getInstance(applicationContext).getWorkInfoByIdLiveData(workId).removeObservers(this)
                         }
                         else -> {}
@@ -254,21 +251,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
     }
-
-    private fun runCategoryOrganization(organizer: CategoryOrganizer, uri: Uri) {
-        lifecycleScope.launch {
-            _isProcessing.value = true
-            try {
-                val result = organizer.organize(uri, ::updateStatus, ::updateOperationProgress)
-                updateStatus("\n--- Resumo: ${result.movedFiles} arquivos movidos para suas categorias.")
-            } catch (e: Exception) {
-                updateStatus("ERRO na organização: ${e.message}")
-            } finally {
-                _isProcessing.value = false
-            }
-        }
-    }
-
     private fun organizeByDate() {
         val uri = workDirectoryUri ?: return
         val dateOrganizer = DateOrganizer(applicationContext)
@@ -325,28 +307,32 @@ class MainActivity : AppCompatActivity() {
             _isProcessing.value = true
 
             try {
-                // 1. CHAMA A ANÁLISE PRIMEIRO
                 val analysisResult = cleaner.analyze(uri)
                 _isProcessing.value = false
 
-                // 2. VERIFICA SE ALGO FOI ENCONTRADO
                 if (analysisResult.filesFound == 0) {
                     updateStatus("Nenhum arquivo temporário ou vazio encontrado.")
                     return@launch
                 }
 
-                // 3. MONTA A MENSAGEM DETALHADA
                 val filesCount = analysisResult.filesFound
-                val spaceToFree = convertBytes(analysisResult.spaceToFree) // Usamos nossa função auxiliar
+                val spaceToFree = convertBytes(analysisResult.spaceToFree)
                 val message = "Foram encontrados $filesCount arquivos inúteis, totalizando $spaceToFree de espaço que pode ser liberado.\n\nDeseja excluí-los permanentemente?"
 
-                // 4. MOSTRA O DIÁLOGO DE CONFIRMAÇÃO
-                showConfirmationDialog(
-                    "Confirmar Limpeza",
-                    message
-                ) {
-                    // A ação de confirmação é chamar a limpeza de verdade
-                    runActualCleaning(cleaner, uri)
+                showConfirmationDialog("Confirmar Limpeza", message) {
+
+                    // AÇÃO DE CONFIRMAÇÃO: Cria e enfileira o WorkRequest
+                    val inputData = workDataOf(
+                        OrganizationWorker.KEY_OPERATION_TYPE to OrganizationWorker.OP_CLEAN_TEMP_FILES,
+                        OrganizationWorker.KEY_URI to uri.toString()
+                    )
+
+                    val workRequest = OneTimeWorkRequestBuilder<OrganizationWorker>()
+                        .setInputData(inputData)
+                        .build()
+
+                    WorkManager.getInstance(applicationContext).enqueue(workRequest)
+                    observeWork(workRequest.id)
                 }
 
             } catch (e: Exception) {
@@ -355,22 +341,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-    private fun runActualCleaning(cleaner: TempFileCleaner, uri: Uri) {
-        lifecycleScope.launch {
-            _isProcessing.value = true
-            try {
-                val result = cleaner.clean(uri, ::updateStatus, ::updateOperationProgress)
-                val freedSpace = convertBytes(result.spaceToFree)
-                updateStatus("\n--- Resumo: ${result.filesFound} arquivos removidos ($freedSpace liberados).")
-            } catch (e: Exception) {
-                updateStatus("ERRO na limpeza: ${e.message}")
-            } finally {
-                _isProcessing.value = false
-            }
-        }
-    }
-
     private fun removeEmptyFolders() {
         val uri = workDirectoryUri ?: return
         val remover = EmptyFolderRemover(applicationContext)

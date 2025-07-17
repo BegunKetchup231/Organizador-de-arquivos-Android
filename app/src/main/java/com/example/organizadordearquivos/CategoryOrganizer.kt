@@ -1,4 +1,3 @@
-// Arquivo: CategoryOrganizer.kt (Esta versão está correta, sem necessidade de mudanças)
 package com.example.organizadordearquivos
 
 import android.content.Context
@@ -30,8 +29,8 @@ class CategoryOrganizer(private val context: Context) {
 
     suspend fun organize(
         uri: Uri,
-        onStatusUpdate: (String) -> Unit,
-        onProgressUpdate: (Int) -> Unit
+        onStatusUpdate: suspend (String) -> Unit,
+        onProgressUpdate: suspend (Int) -> Unit
     ): CategoryOrganizationResult = withContext(Dispatchers.IO) {
         onStatusUpdate("\n--- Iniciando Organização por Categoria ---")
 
@@ -48,7 +47,7 @@ class CategoryOrganizer(private val context: Context) {
 
         filesToMove.forEachIndexed { index, file ->
             val extension = file.getExtension()
-            val categoryName = FileConfig.FILE_CATEGORIES.getOrDefault(extension, "Diversos")
+            val categoryName = FileConfig.FILE_CATEGORIES.getOrDefault(extension, "Audios")
             val categoryFolder = findOrCreateDirectory(mainOutputFolder, categoryName)!!
             val extensionName = extension.removePrefix(".").uppercase(Locale.ROOT)
             val finalSubFolderName = "Arquivos.$extensionName"
@@ -86,7 +85,8 @@ class CategoryOrganizer(private val context: Context) {
         } else { "" }
     }
 
-    private fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String, onStatusUpdate: (String) -> Unit): DocumentFile? {
+    // A MUDANÇA ESTÁ AQUI: onStatusUpdate agora é 'suspend'
+    private suspend fun moveFile(fileToMove: DocumentFile, destinationDir: DocumentFile, finalFileName: String, onStatusUpdate: suspend (String) -> Unit): DocumentFile? {
         try {
             val fileWithFinalName = if (fileToMove.name != finalFileName) {
                 if (fileToMove.renameTo(finalFileName)) {

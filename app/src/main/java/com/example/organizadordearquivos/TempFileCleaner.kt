@@ -40,8 +40,8 @@ class TempFileCleaner(private val context: Context) {
     // Função de limpeza (agora usa a mesma data class)
     suspend fun clean(
         uri: Uri,
-        onStatusUpdate: (String) -> Unit,
-        onProgressUpdate: (Int) -> Unit
+        onStatusUpdate: suspend (String) -> Unit,
+        onProgressUpdate: suspend (Int) -> Unit
     ): CleanResult = withContext(Dispatchers.IO) {
 
         onStatusUpdate("\n--- Iniciando Limpeza de Arquivos ---")
