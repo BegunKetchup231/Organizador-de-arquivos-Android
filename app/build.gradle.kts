@@ -25,11 +25,10 @@ android {
                 "proguard-rules.pro"
             )
         }
-        // Você pode adicionar um bloco 'debug' aqui se quiser, mas não é obrigatório agora
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11 // Corrected
-        targetCompatibility = JavaVersion.VERSION_11 // Corrected
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
     kotlinOptions {
         jvmTarget = "11"

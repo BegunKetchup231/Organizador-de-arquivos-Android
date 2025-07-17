@@ -1,7 +1,5 @@
 package com.example.organizadordearquivos
 
-import androidx.work.*
-import java.util.UUID
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
@@ -23,6 +21,13 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.MobileAds
@@ -31,27 +36,25 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.util.Locale
+import java.util.*
 import kotlin.math.log2
 import kotlin.math.pow
-import androidx.preference.PreferenceManager
+
 
 class MainActivity : AppCompatActivity() {
 
-    // --- Views da UI (ATUALIZADAS PARA O NOVO LAYOUT) ---
+    // --- Views da UI ---
     private lateinit var cardSelectFolder: MaterialCardView
     private lateinit var tvHelperText: TextView
     private lateinit var tvSelectedPath: TextView
     private lateinit var actionsGridLayout: GridLayout
     private lateinit var progressContainer: MaterialCardView
-    private lateinit var scrollViewStatus: ScrollView
-
-    // Views que ainda são necessárias
+    private lateinit var statusRecyclerView: RecyclerView
+    private lateinit var statusAdapter: StatusAdapter
     private lateinit var btnOrganizeCategory: Button
     private lateinit var btnCleanFiles: Button
     private lateinit var btnRemoveEmptyFolders: Button
     private lateinit var btnOrganizeByDate: Button
-    private lateinit var tvStatus: TextView
     private lateinit var progressBar: ProgressBar
     private lateinit var progressStatusText: TextView
     private lateinit var mAdView: AdView
@@ -102,8 +105,10 @@ class MainActivity : AppCompatActivity() {
         tvSelectedPath = findViewById(R.id.tv_selected_path)
         actionsGridLayout = findViewById(R.id.actions_grid_layout)
         progressContainer = findViewById(R.id.progress_container)
-        scrollViewStatus = findViewById(R.id.status_scroll_view)
-        tvStatus = findViewById(R.id.tvStatus)
+        statusRecyclerView = findViewById(R.id.status_recycler_view)
+        statusAdapter = StatusAdapter(mutableListOf())
+        statusRecyclerView.layoutManager = LinearLayoutManager(this).apply { stackFromEnd = true }
+        statusRecyclerView.adapter = statusAdapter
         btnOrganizeCategory = findViewById(R.id.btnOrganizeCategory)
         btnOrganizeByDate = findViewById(R.id.btnOrganizeByDate)
         btnCleanFiles = findViewById(R.id.btnCleanFiles)
@@ -113,22 +118,16 @@ class MainActivity : AppCompatActivity() {
         mAdView = findViewById(R.id.adView)
     }
 
+    // FUNÇÃO SETUPCLICKLISTENERS CORRIGIDA
     private fun setupClickListeners() {
         cardSelectFolder.setOnClickListener { selectFolder() }
-
-        btnOrganizeCategory.setOnClickListener {
-            organizeByCategory()
-        }
-        btnOrganizeByDate.setOnClickListener {
-            organizeByDate()
-        }
-        btnCleanFiles.setOnClickListener {
-            cleanFiles()
-        }
-        btnRemoveEmptyFolders.setOnClickListener {
-            removeEmptyFolders()
-        }
+        btnOrganizeCategory.setOnClickListener { organizeByCategory() }
+        btnOrganizeByDate.setOnClickListener { organizeByDate() }
+        btnCleanFiles.setOnClickListener { cleanFiles() }
+        btnRemoveEmptyFolders.setOnClickListener { removeEmptyFolders() }
     }
+
+    // --- LÓGICA DE TRANSIÇÃO DE UI E ESTADO ---
 
     private fun setupOpenDocumentTreeLauncher() {
         openDocumentTreeLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -148,13 +147,10 @@ class MainActivity : AppCompatActivity() {
         val uriString = prefs.getString(PREF_LAST_URI, null)
         if (uriString.isNullOrEmpty()) return
         try {
-            val uri = uriString.toUri() // Agora esta linha funcionará
+            val uri = uriString.toUri()
             if (contentResolver.persistedUriPermissions.any { it.uri == uri }) {
-                val documentFile = DocumentFile.fromTreeUri(this, uri)
-                if (documentFile != null && documentFile.exists()) {
-                    this@MainActivity.workDirectoryUri = uri
-                    this@MainActivity.showActiveStateUI(uri)
-                }
+                this@MainActivity.workDirectoryUri = uri
+                this@MainActivity.showActiveStateUI(uri)
             }
         } catch (e: Exception) {
             saveLastUsedUri(null)
@@ -177,11 +173,11 @@ class MainActivity : AppCompatActivity() {
                 updateButtonStates()
                 val visibility = if (processing) View.VISIBLE else View.GONE
                 progressContainer.visibility = visibility
-                scrollViewStatus.visibility = visibility
+                statusRecyclerView.visibility = visibility
                 if (!processing) {
                     updateOperationProgress(0)
                 } else {
-                    tvStatus.text = ""
+                    statusAdapter.clearMessages()
                 }
             }
         }
@@ -197,27 +193,8 @@ class MainActivity : AppCompatActivity() {
         btnRemoveEmptyFolders.isEnabled = isFolderSelected && !processing
     }
 
-    private fun organizeByCategory() {
-        val uri = workDirectoryUri ?: return
+    // --- CHAMADAS PARA OS ESPECIALISTAS E WORKMANAGER ---
 
-        // 1. Prepara os dados para o Worker
-        val inputData = workDataOf(
-            OrganizationWorker.KEY_OPERATION_TYPE to OrganizationWorker.OP_ORGANIZE_BY_CATEGORY,
-            OrganizationWorker.KEY_URI to uri.toString()
-        )
-
-        // 2. Cria o pedido de trabalho
-        val workRequest = OneTimeWorkRequestBuilder<OrganizationWorker>()
-            .setInputData(inputData)
-            .build()
-
-        // 3. Envia o pedido para o WorkManager e começa a observar
-        val workManager = WorkManager.getInstance(applicationContext)
-        workManager.enqueue(workRequest)
-
-        // 4. Começa a observar o progresso deste trabalho específico
-        observeWork(workRequest.id)
-    }
     private fun observeWork(workId: UUID) {
         WorkManager.getInstance(applicationContext)
             .getWorkInfoByIdLiveData(workId)
@@ -225,20 +202,15 @@ class MainActivity : AppCompatActivity() {
                 if (workInfo != null) {
                     val progress = workInfo.progress.getInt(OrganizationWorker.KEY_PROGRESS_PERCENT, -1)
                     val status = workInfo.progress.getString(OrganizationWorker.KEY_PROGRESS_STATUS)
-
                     if (progress != -1) { updateOperationProgress(progress) }
                     if (status != null) { updateStatus(status) }
-
                     when (workInfo.state) {
                         WorkInfo.State.RUNNING -> {
                             if (!_isProcessing.value) { _isProcessing.value = true }
                         }
-                        WorkInfo.State.SUCCEEDED -> { // QUANDO O TRABALHO TERMINA COM SUCESSO
-                            // Pega a mensagem de resumo final enviada pelo Worker
+                        WorkInfo.State.SUCCEEDED -> {
                             val summary = workInfo.outputData.getString(OrganizationWorker.KEY_RESULT_SUMMARY)
-                            if (summary != null) {
-                                updateStatus(summary)
-                            }
+                            if (summary != null) { updateStatus(summary) }
                             if (_isProcessing.value) { _isProcessing.value = false }
                             WorkManager.getInstance(applicationContext).getWorkInfoByIdLiveData(workId).removeObservers(this)
                         }
@@ -251,127 +223,126 @@ class MainActivity : AppCompatActivity() {
                 }
             }
     }
+
+    private fun organizeByCategory() {
+        val uri = workDirectoryUri ?: return
+        val organizer = CategoryOrganizer(applicationContext)
+        lifecycleScope.launch {
+            updateStatus("Analisando a pasta...")
+            _isProcessing.value = true
+            try {
+                val analysisResult = organizer.analyze(uri)
+                _isProcessing.value = false
+                if (analysisResult.fileCountsByCategory.isEmpty()) {
+                    updateStatus("Nenhum arquivo para organizar foi encontrado.")
+                    return@launch
+                }
+                val messageBuilder = StringBuilder("A organização moverá:\n")
+                analysisResult.fileCountsByCategory.forEach { (category, count) ->
+                    messageBuilder.append("\n- $count arquivos para a categoria '$category'")
+                }
+                messageBuilder.append("\n\nDeseja continuar?")
+                showConfirmationDialog("Confirmar Organização", messageBuilder.toString()) {
+                    val inputData = workDataOf(
+                        OrganizationWorker.KEY_OPERATION_TYPE to OrganizationWorker.OP_ORGANIZE_BY_CATEGORY,
+                        OrganizationWorker.KEY_URI to uri.toString()
+                    )
+                    val workRequest = OneTimeWorkRequestBuilder<OrganizationWorker>().setInputData(inputData).build()
+                    WorkManager.getInstance(applicationContext).enqueue(workRequest)
+                    observeWork(workRequest.id)
+                }
+            } catch (e: Exception) {
+                _isProcessing.value = false
+                updateStatus("ERRO durante a análise: ${e.message}")
+            }
+        }
+    }
+
     private fun organizeByDate() {
         val uri = workDirectoryUri ?: return
         val dateOrganizer = DateOrganizer(applicationContext)
-
         lifecycleScope.launch {
             updateStatus("\nAnalisando a pasta para organização por data...")
-            _isProcessing.value = true // Mostra o indicador de "analisando"
-
+            _isProcessing.value = true
             try {
-                // 1. CHAMA A ANÁLISE PRIMEIRO
                 val filesToMoveCount = dateOrganizer.analyze(uri)
-                _isProcessing.value = false // Esconde o indicador de "analisando"
-
-                // 2. VERIFICA SE ALGO FOI ENCONTRADO
+                _isProcessing.value = false
                 if (filesToMoveCount == 0) {
                     updateStatus("Nenhum arquivo para organizar por data foi encontrado.")
                     return@launch
                 }
-
-                // 3. MONTA A MENSAGEM DETALHADA
                 val message = "Encontrados $filesToMoveCount arquivos para organizar por data.\n\nDeseja continuar?"
-
-                // 4. MOSTRA O DIÁLOGO DE CONFIRMAÇÃO
                 showConfirmationDialog("Confirmar Organização por Data", message) {
-
-                    // AÇÃO DE CONFIRMAÇÃO: Agora cria e enfileira o WorkRequest
                     val inputData = workDataOf(
                         OrganizationWorker.KEY_OPERATION_TYPE to OrganizationWorker.OP_ORGANIZE_BY_DATE,
                         OrganizationWorker.KEY_URI to uri.toString()
                     )
-
-                    val workRequest = OneTimeWorkRequestBuilder<OrganizationWorker>()
-                        .setInputData(inputData)
-                        .build()
-
-                    val workManager = WorkManager.getInstance(applicationContext)
-                    workManager.enqueue(workRequest)
-
+                    val workRequest = OneTimeWorkRequestBuilder<OrganizationWorker>().setInputData(inputData).build()
+                    WorkManager.getInstance(applicationContext).enqueue(workRequest)
                     observeWork(workRequest.id)
                 }
-
             } catch (e: Exception) {
                 _isProcessing.value = false
                 updateStatus("ERRO durante a análise: ${e.message}")
             }
         }
     }
+
     private fun cleanFiles() {
         val uri = workDirectoryUri ?: return
         val cleaner = TempFileCleaner(applicationContext)
-
         lifecycleScope.launch {
             updateStatus("\nAnalisando arquivos para limpeza...")
             _isProcessing.value = true
-
             try {
                 val analysisResult = cleaner.analyze(uri)
                 _isProcessing.value = false
-
                 if (analysisResult.filesFound == 0) {
                     updateStatus("Nenhum arquivo temporário ou vazio encontrado.")
                     return@launch
                 }
-
                 val filesCount = analysisResult.filesFound
                 val spaceToFree = convertBytes(analysisResult.spaceToFree)
                 val message = "Foram encontrados $filesCount arquivos inúteis, totalizando $spaceToFree de espaço que pode ser liberado.\n\nDeseja excluí-los permanentemente?"
-
                 showConfirmationDialog("Confirmar Limpeza", message) {
-
-                    // AÇÃO DE CONFIRMAÇÃO: Cria e enfileira o WorkRequest
                     val inputData = workDataOf(
                         OrganizationWorker.KEY_OPERATION_TYPE to OrganizationWorker.OP_CLEAN_TEMP_FILES,
                         OrganizationWorker.KEY_URI to uri.toString()
                     )
-
-                    val workRequest = OneTimeWorkRequestBuilder<OrganizationWorker>()
-                        .setInputData(inputData)
-                        .build()
-
+                    val workRequest = OneTimeWorkRequestBuilder<OrganizationWorker>().setInputData(inputData).build()
                     WorkManager.getInstance(applicationContext).enqueue(workRequest)
                     observeWork(workRequest.id)
                 }
-
             } catch (e: Exception) {
                 _isProcessing.value = false
                 updateStatus("ERRO durante a análise: ${e.message}")
             }
         }
     }
+
     private fun removeEmptyFolders() {
         val uri = workDirectoryUri ?: return
         val remover = EmptyFolderRemover(applicationContext)
-
         lifecycleScope.launch {
             updateStatus("\nAnalisando pastas vazias...")
             _isProcessing.value = true
-
             try {
-                // 1. CHAMA A ANÁLISE PRIMEIRO
                 val emptyFolderCount = remover.analyze(uri)
                 _isProcessing.value = false
-
-                // 2. VERIFICA SE ALGO FOI ENCONTRADO
                 if (emptyFolderCount == 0) {
                     updateStatus("Nenhuma pasta vazia encontrada.")
                     return@launch
                 }
-
-                // 3. MONTA A MENSAGEM DETALHADA
                 val message = "Foram encontradas $emptyFolderCount pastas vazias.\n\nDeseja excluí-las permanentemente?"
-
-                // 4. MOSTRA O DIÁLOGO DE CONFIRMAÇÃO
-                showConfirmationDialog(
-                    "Confirmar Remoção",
-                    message
-                ) {
-                    // A ação de confirmação é chamar a remoção de verdade
-                    runActualEmptyFolderRemoval(remover, uri)
+                showConfirmationDialog("Confirmar Remoção", message) {
+                    val inputData = workDataOf(
+                        OrganizationWorker.KEY_OPERATION_TYPE to OrganizationWorker.OP_REMOVE_EMPTY_FOLDERS,
+                        OrganizationWorker.KEY_URI to uri.toString()
+                    )
+                    val workRequest = OneTimeWorkRequestBuilder<OrganizationWorker>().setInputData(inputData).build()
+                    WorkManager.getInstance(applicationContext).enqueue(workRequest)
+                    observeWork(workRequest.id)
                 }
-
             } catch (e: Exception) {
                 _isProcessing.value = false
                 updateStatus("ERRO durante a análise: ${e.message}")
@@ -379,24 +350,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun runActualEmptyFolderRemoval(remover: EmptyFolderRemover, uri: Uri) {
-        lifecycleScope.launch {
-            _isProcessing.value = true
-            try {
-                val removedCount = remover.remove(uri, ::updateStatus, ::updateOperationProgress)
-                updateStatus("\n--- Resumo: $removedCount pastas vazias removidas.")
-            } catch (e: Exception) {
-                updateStatus("ERRO na remoção: ${e.message}")
-            } finally {
-                _isProcessing.value = false
-            }
-        }
-    }
+    // --- Funções de UI, Persistência e Auxiliares ---
 
     private fun updateStatus(message: String) {
         runOnUiThread {
-            tvStatus.append("\n$message")
-            scrollViewStatus.post { scrollViewStatus.fullScroll(View.FOCUS_DOWN) }
+            val type = when {
+                message.contains("--- Resumo:") || message.contains("sucesso") -> StatusType.SUCCESS
+                message.contains("ERRO") || message.contains("Falha") -> StatusType.ERROR
+                else -> StatusType.INFO
+            }
+            val cleanMessage = message.trim()
+            statusAdapter.addMessage(StatusMessage(cleanMessage, type))
+            statusRecyclerView.scrollToPosition(statusAdapter.itemCount - 1)
         }
     }
 
@@ -421,27 +386,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showConfirmationDialog(title: String, message: String, onConfirm: () -> Unit) {
-        // 1. Acessa as configurações padrão do aplicativo
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
-
-        // 2. Lê o valor do nosso interruptor.
-        // A chave "confirmations_enabled" é a mesma que definimos no root_preferences.xml.
-        // O `true` é o valor padrão caso a configuração nunca tenha sido tocada.
         val showDialogs = sharedPreferences.getBoolean("confirmations_enabled", true)
-
         if (showDialogs) {
-            // 3a. Se a opção estiver LIGADA, mostra o diálogo de confirmação como antes.
             AlertDialog.Builder(this).setTitle(title).setMessage(message)
-                .setPositiveButton("Confirmar") { dialog, _ ->
-                    onConfirm()
-                    dialog.dismiss()
-                }
-                .setNegativeButton("Cancelar") { dialog, _ ->
-                    updateStatus("Operação cancelada.")
-                    dialog.dismiss()
-                }.show()
+                .setPositiveButton("Confirmar") { dialog, _ -> onConfirm(); dialog.dismiss() }
+                .setNegativeButton("Cancelar") { dialog, _ -> updateStatus("Operação cancelada."); dialog.dismiss() }
+                .show()
         } else {
-            // 3b. Se a opção estiver DESLIGADA, executa a ação diretamente, sem perguntar.
             onConfirm()
         }
     }
